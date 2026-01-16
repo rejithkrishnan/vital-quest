@@ -1,12 +1,12 @@
 import { View, Text } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-export default function HomeScreen() {
+export default function ChatScreen() {
   return (
     <SafeAreaView className="flex-1 bg-white" edges={['top']}>
       <View className="flex-1 items-center justify-center p-4">
-        <Text className="text-2xl font-bold text-gray-900 mb-2">Dashboard</Text>
-        <Text className="text-gray-500 text-center">Daily plan and stats will appear here.</Text>
+        <Text className="text-2xl font-bold text-gray-900 mb-2">AI Coach</Text>
+        <Text className="text-gray-500 text-center">Chat with Gemini will appear here.</Text>
       </View>
     </SafeAreaView>
   );
