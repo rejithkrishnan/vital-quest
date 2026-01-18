@@ -1,9 +1,23 @@
 # **Business Requirement Document (BRD)**
 
 **Project Name:** vitalQuest (AI Personal Health Coach)
-**Version:** 2.1
+**Version:** 2.2
 **Date:** January 2026
 **Primary Tech Stack:** React Native (Expo), Supabase (PostgreSQL + Edge Functions), Google Gemini, MCP
+
+---
+
+## **Implementation Status**
+
+| Module | Status | Notes |
+|--------|--------|-------|
+| **A: Onboarding** | ✅ Complete | Basic profile + auth |
+| **B: AI Plan Generation** | 🔶 Partial | Plan schema exists, generation pending |
+| **C: Signal Features** | ⏳ Pending | Gait/HRV not started |
+| **D: Gamification** | ✅ Complete | XP, Levels, Dashboard |
+| **E: AI Chat** | 🔶 Partial | Basic chat done; Sessions, RAG, Uploads pending |
+| **Screen Structure** | 🔶 Partial | 4 of 5 tabs implemented |
+| **UI/UX Polish** | ⏳ Pending | Animations, avatars pending |
 
 ---
 
@@ -43,6 +57,7 @@ Using the **Model Context Protocol (MCP)**, the app connects Gemini to data tool
 * **Real-time Adaptation:**
 * *User:* "I only have 15 mins today."
 * *System:* Instantly rewrites the day's session to a high-intensity interval training (HIIT) session.
+* **Interactive Editing:** Users can modify specific line items (e.g., "Change 2 Idli to 3 Dosa"); the AI recalculates the rest of the day's plan to maintain calorie/macro targets.
 
 
 
@@ -74,11 +89,56 @@ Users engage with a **PBL (Points, Badges, Leaderboards)** system.
 
 ### **3.5. Module E: The AI Assistant (Chat)**
 
+The AI chat is the central interaction hub for personalized coaching.
+
 * **Context Aware:** Knows the user's level, recent signals, and plan status.
-* **Safety First:** Filters out medical advice; redirects to professional help for serious pain signals.
-* **Multimedia:** Can analyze food photos (via Gemini Vision) to log calories automatically.
+* **Persistent History:** Retains conversation history across sessions.
+* **Session Management:** Users can start "New Chat" and view previous sessions from a history drawer.
+* **Multi-modal Input:** Attach images (food photos, medical reports) and PDFs.
+* **Long-term Memory (RAG):** Extracts and indexes user details (height, weight, allergies) into a vector DB.
+* **Safety First:** Refuses medical diagnosis; refers to doctors.
+* **Visual Verification:** Capture photo of completed activity -> AI verifies and logs actual calories/reps.
 
 ---
+
+### **3.6. App Screen Structure**
+
+The app should be visually engaging and easy to navigate. Tabs are the primary navigation.
+
+| Tab | Screen Name | Purpose |
+|-----|-------------|---------|
+| 🏠 **Home** | Dashboard | Daily XP, Level, Streak, Today's Plan Summary, Calorie Progress |
+| 📋 **Plans** | My Plan | Detailed daily/weekly view, Task list with checkboxes, Edit & Verify buttons |
+| 💬 **Chat** | AI Coach | Chat interface, History drawer, File attachments |
+| 📊 **Insights** | Bio-Insights | Gait score trends, HRV charts, Sleep analysis |
+| 👤 **Profile** | Settings | User profile, Goals, Streak Freeze shop, Badge showcase |
+
+**Key Screens (Non-Tab):**
+* **(auth)/login.tsx**: Beautiful login with gradient background.
+* **(auth)/onboarding/[step].tsx**: 3-step wizard (Intro, Goals, Calibration).
+* **plan/[id].tsx**: Full plan detail with task editing.
+* **camera/verify.tsx**: Camera screen for visual verification.
+
+---
+
+### **3.7. UI/UX Aesthetic Guidelines**
+
+To ensure the app is **aesthetically pleasing and engaging**:
+
+* **Color Palette:** Google Fit-inspired (Blue `#4285F4`, Green `#34A853`, Red `#EA4335`), Dark Mode support.
+* **Typography:** Clean sans-serif (Inter or SF Pro).
+* **Animations:**
+    * XP bar fills with spring animation (Reanimated).
+    * Level-up triggers confetti burst (Lottie).
+    * Task completion has satisfying checkmark animation.
+* **Gamification Visuals:**
+    * Avatar that evolves with level (simple icon → warrior).
+    * Badges displayed as collectible cards.
+    * Streaks shown as "Fire" icons with flame intensity scaling.
+* **Micro-interactions:**
+    * Haptic feedback on all button taps.
+    * Pull-to-refresh with XP animation.
+    * Skeleton loaders for all data fetches.
 
 ## **4. Non-Functional Requirements**
 

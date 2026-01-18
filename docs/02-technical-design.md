@@ -5,8 +5,26 @@ Here is the **Technical Design Document (TDD)** for your AI Personal Health Coac
 # **Technical Design Document (TDD)**
 
 **Project Name:** AI Personal Health Coach & Gamification System
-**Version:** 1.0
+**Version:** 2.0
 **Date:** January 2026
+
+---
+
+## **Implementation Status**
+
+| Component | Status | Notes |
+|-----------|--------|-------|
+| **Frontend (5 Tabs)** | 🔶 Partial | 4 tabs done, Plans/Insights pending |
+| **Auth & Profile** | ✅ Complete | Supabase Auth + Profiles table |
+| **Gamification** | ✅ Complete | XP, Levels, Streak store |
+| **AI Chat (Basic)** | ✅ Complete | Chat UI + Edge Function |
+| **Chat Sessions** | ⏳ Pending | Multi-session support |
+| **Chat Attachments** | ⏳ Pending | File upload support |
+| **RAG Memory** | ⏳ Pending | pgvector + user_memory table |
+| **Daily Plans** | 🔶 Partial | Schema exists, UI pending |
+| **Plan Tasks** | 🔶 Partial | Schema exists, interactive edit pending |
+| **Sensors (Gait/HRV)** | ⏳ Pending | Not started |
+| **Advanced Gamification** | ⏳ Pending | Streaks, Quests, Badges |
 
 ---
 
@@ -26,32 +44,72 @@ The system follows a **Hybrid Client-Server Architecture** enhanced by the **Mod
 
 * **Framework:** React Native (Expo SDK 50+).
 * **Language:** TypeScript.
-* **UI Library:** **NativeWind v4** (Tailwind CSS for React Native - fast iteration, custom gamification UI).
+* **UI Library:** **NativeWind v4** (Tailwind CSS for React Native).
 * **State Management:** **Zustand** (Global Store) + **TanStack Query** (Server State/Caching).
 * **Navigation:** Expo Router (File-based routing).
+* **Animations:** React Native Reanimated + Lottie.
 
-### **2.2. Core Modules**
+### **2.2. Navigation Structure (5 Tabs)**
 
-1. **Sensor Module (`/services/sensors`)**
-* **Motion:** Uses `expo-sensors` (Accelerometer/Gyroscope) to sample at 60Hz. Buffers data in 5-second windows before processing or sending to backend.
-* **Vision:** Uses `react-native-vision-camera` for rPPG (Heart Rate) and food logging snapshots.
+```
+app/
+├── (tabs)/
+│   ├── _layout.tsx       # Tab navigator with 5 tabs
+│   ├── index.tsx         # 🏠 Home (Dashboard)
+│   ├── plans.tsx         # 📋 Plans (Daily/Weekly Tasks)
+│   ├── chat.tsx          # 💬 Chat (AI Coach)
+│   ├── insights.tsx      # 📊 Insights (Gait/HRV/Sleep)
+│   └── profile.tsx       # 👤 Profile (Settings/Badges)
+├── (auth)/
+│   ├── login.tsx
+│   ├── signup.tsx
+│   └── onboarding/
+│       └── [step].tsx    # 3-step onboarding wizard
+├── plan/
+│   └── [id].tsx          # Plan detail + edit
+├── camera/
+│   └── verify.tsx        # Visual verification camera
+└── chat-history/
+    └── index.tsx         # Session list modal/screen
+```
 
+### **2.3. Core Modules**
 
-2. **Gamification UI (`/components/game`)**
-* **XP Bar:** Animated SVG using `react-native-reanimated` for smooth filling.
-* **Haptic Engine:** Triggers `expo-haptics` on task completion.
+1. **Dashboard Module (`/app/(tabs)/index.tsx`)**
+   * Today's plan summary (compact cards).
+   * XP Bar + Level Badge (animated).
+   * Calorie Progress Ring (Planned vs. Actual).
+   * Quick action buttons (Log Meal, Start Workout).
 
+2. **Plans Module (`/app/(tabs)/plans.tsx`)**
+   * Day-wise task list with checkboxes.
+   * Camera icon for visual verification.
+   * Long-press to "Edit with AI".
+   * Progress: "5 of 8 tasks complete".
 
-3. **Chat Interface (`/app/chat`)**
-* Implements a "Optimistic UI" – shows the user's message immediately while streaming the AI response.
+3. **Chat Module (`/app/(tabs)/chat.tsx`)**
+   * Message bubbles with markdown support.
+   * Attach button (Images/PDFs).
+   * History drawer (swipe from left).
+   * "New Chat" button in header.
 
+4. **Insights Module (`/app/(tabs)/insights.tsx`)**
+   * Gait score trend chart.
+   * HRV variability graph.
+   * Sleep quality score.
+   * Weekly comparison cards.
 
+5. **Profile Module (`/app/(tabs)/profile.tsx`)**
+   * User avatar + level.
+   * Badge showcase (collectible cards).
+   * Settings (Notifications, Dark Mode).
+   * Streak Freeze shop.
 
-### **2.3. Offline Strategy**
+### **2.4. Offline Strategy**
 
-* Uses **RxDB** or **WatermelonDB** (local SQLite wrapper) to cache today's plan. Users can check off items offline; sync happens when connection is restored.
-
----
+* Uses **WatermelonDB** (local SQLite wrapper) to cache today's plan.
+* Users can check off items offline; sync happens when connection is restored.
+* Pending uploads queued and retried.
 
 ## **3. Backend Design (The Orchestrator)**
 
@@ -119,7 +177,20 @@ The backend hosts the **MCP Host**. When Gemini decides to take an action, it ca
 * `user_id` (UUID, FK → profiles.id)
 * `plan_date` (date)
 * `status` (text: 'pending' | 'partial' | 'completed')
-* `plan_data` (JSONB: exercises and meals from Gemini)
+* `plan_data` (JSONB) -- Deprecated in favor of plan_tasks? Or keeping for summary.
+* `created_at` (timestamptz)
+
+**3b. `plan_tasks`**
+
+* `id` (UUID, PK)
+* `plan_id` (UUID, FK → daily_plans.id)
+* `description` (text)
+* `is_completed` (boolean)
+* `xp_reward` (integer)
+* `task_type` (text: 'workout' | 'nutrition' | 'mindfulness')
+* `metadata` (JSONB: { calories: 300, protein: 10, macros: {...} })
+* `completed_image_url` (text)
+* `actual_metadata` (JSONB: { calories: 350, protein: 12 } -- AI verification)
 * `created_at` (timestamptz)
 
 **4. `biomarker_logs`**
@@ -129,7 +200,46 @@ The backend hosts the **MCP Host**. When Gemini decides to take an action, it ca
 * `logged_at` (timestamptz)
 * `signal_type` (text: 'gait' | 'hrv' | 'sleep')
 * `raw_value` (JSONB)
-* `insight_generated` (text)
+* `log_id` (UUID, FK → biomarker_logs.id)
+* `insight_text` (text)
+* `created_at` (timestamptz)
+
+**5. `chat_sessions`**
+
+* `id` (UUID, PK)
+* `user_id` (UUID, FK → profiles.id)
+* `title` (text, e.g., "Workout Advice")
+* `created_at` (timestamptz)
+* `updated_at` (timestamptz)
+
+**6. `chat_messages`**
+
+* `id` (UUID, PK)
+* `session_id` (UUID, FK → chat_sessions.id)
+* `user_id` (UUID, FK → profiles.id)
+* `role` (text: 'user' | 'model')
+* `text` (text)
+* `created_at` (timestamptz)
+
+**7. `chat_attachments`**
+
+* `id` (UUID, PK)
+* `message_id` (UUID, FK → chat_messages.id)
+* `file_path` (text, Storage path)
+* `file_type` (text, e.g., 'image/jpeg', 'application/pdf')
+* `created_at` (timestamptz)
+
+**8. `user_memory` (RAG)**
+
+* `id` (UUID, PK)
+* `user_id` (UUID, FK → profiles.id)
+* `fact_text` (text, e.g., "User has nut allergy")
+* `embedding` (vector(768)) -- Gemini Embedding dimensions
+* `created_at` (timestamptz)
+
+### **4.3. Storage Buckets**
+* `chat-attachments`: Private bucket for user uploads (Images, PDFs). Policies restricted to owner.
+* `updated_at` (timestamptz)
 
 ---
 

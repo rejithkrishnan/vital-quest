@@ -1,0 +1,1 @@
+1. check later the usage pricing of supabase edge functions and gemini 

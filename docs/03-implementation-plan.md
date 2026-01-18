@@ -16,6 +16,22 @@
 
 ---
 
+## **Implementation Status**
+
+| Phase | Status | Completion |
+|-------|--------|------------|
+| **Phase 1: Foundation** | ✅ Complete | 100% |
+| **Phase 2: Auth & Profile** | ✅ Complete | 100% |
+| **Phase 3: Basic Gamification** | ✅ Complete | 100% |
+| **Phase 4: AI Chat** | ✅ Complete | 100% |
+| **Phase 4b: Enhanced AI** | ⏳ Pending | 0% |
+| **Phase 5: Plans & Logging** | 🔶 Partial | 30% (Schema only) |
+| **Phase 6: Sensors** | ⏳ Pending | 0% |
+| **Phase 7: Advanced Gamification** | ⏳ Pending | 0% |
+| **Phase 8: Polish & Launch** | ⏳ Pending | 0% |
+
+---
+
 ## Technology Stack Summary
 
 | Layer | Technology |
@@ -70,31 +86,37 @@ Project scaffold with navigation and theming - **no backend yet**.
 | 1.2 | Install libraries | `npm install nativewind tailwindcss react-native-reanimated lottie-react-native` | 10 min |
 | 1.3 | Configure Tailwind | Create `tailwind.config.js` with Google Fit colors | 15 min |
 | 1.4 | Config Metro/Babel | Add NativeWind + Reanimated plugins | 15 min |
-| 1.5 | Create tab layout | 3 tabs: Home, Chat, Profile | 30 min |
+| 1.5 | Create tab layout | 5 tabs: Home, Plans, Chat, Insights, Profile | 45 min |
 | 1.6 | Design tokens | Define Google Fit-style colors: Primary Blue (`#4285F4`), Health Green (`#34A853`), Energy Red (`#EA4335`) | 20 min |
 | 1.7 | Create base components | Button, Card, Input with NativeWind styling | 1 hr |
 | 1.8 | Test on device | Run on iOS Simulator / Android Emulator | 15 min |
 
 ### Exit Criteria
-- [ ] App runs with 3 functional tabs
-- [ ] NativeWind styling works correctly
-- [ ] Custom color theme applied
+- [x] App runs with 5 functional tabs (Home, Plans, Chat, Insights, Profile)
+- [x] NativeWind styling works correctly
+- [x] Custom color theme applied
 
 ### Key Files Created
 ```
 vitalquest/
 ├── app/
 │   ├── (tabs)/
-│   │   ├── _layout.tsx      # Tab navigator
-│   │   ├── index.tsx        # Home tab
-│   │   ├── chat.tsx         # Chat tab
-│   │   └── profile.tsx      # Profile tab
+│   │   ├── _layout.tsx      # Tab navigator (5 tabs)
+│   │   ├── index.tsx        # 🏠 Home (Dashboard)
+│   │   ├── plans.tsx        # 📋 Plans (Daily Tasks)
+│   │   ├── chat.tsx         # 💬 Chat (AI Coach)
+│   │   ├── insights.tsx     # 📊 Insights (Bio-feedback)
+│   │   └── profile.tsx      # 👤 Profile (Settings)
 │   └── _layout.tsx          # Root layout
 ├── components/
 │   ├── ui/
 │   │   ├── Button.tsx
 │   │   ├── Card.tsx
-│   │   └── Input.tsx
+│   │   ├── Input.tsx
+│   │   └── ProgressRing.tsx
+│   └── game/
+│       ├── XpBar.tsx
+│       └── LevelBadge.tsx
 ├── tailwind.config.js
 ├── global.css
 └── metro.config.js
@@ -148,10 +170,10 @@ CREATE POLICY "Users can update own profile"
 ```
 
 ### Exit Criteria
-- [ ] User can sign up with email/password
-- [ ] User can sign in with Google
-- [ ] Onboarding flow saves to database
-- [ ] Profile screen shows user data
+- [x] User can sign up with email/password
+- [x] User can sign in with Google
+- [x] Onboarding flow saves to database
+- [x] Profile screen shows user data
 
 ---
 
@@ -245,34 +267,68 @@ RULES:
 ```
 
 ### Exit Criteria
-- [ ] User can send messages to AI
-- [ ] AI responses stream in real-time
-- [ ] AI knows user's level and profile
-- [ ] Medical queries show disclaimer
+- [x] User can send messages to AI
+- [x] AI responses stream in real-time
+- [x] AI knows user's level and profile
+- [x] Medical queries show disclaimer
+- [x] Chat history persists in database
 
 ---
 
-## Phase 5: Daily Plans & Activity Logging (Days 17-21)
+## Phase 4b: Enhanced AI Features (Days 17-20)
 
 ### Goal
-AI generates personalized daily plans, users log activities.
+Multi-session chat, file uploads, RAG memory, and visual verification.
 
 ### Tasks
 
 | # | Task | Command / Action | Est. Time |
 |---|------|------------------|-----------|
-| 5.1 | Create `daily_plans` table | SQL migration | 20 min |
-| 5.2 | Plan generation prompt | Gemini creates workout/nutrition | 1 hr |
-| 5.3 | Build plan UI | Today's plan with checkboxes | 2 hr |
+| 4b.1 | Create `chat_sessions` table | SQL migration | 20 min |
+| 4b.2 | Build ChatHistoryModal | Session list + New Chat button | 1.5 hr |
+| 4b.3 | Integrate session switching | Update `chat.tsx` state logic | 1 hr |
+| 4b.4 | Create `chat_attachments` table | SQL migration + Storage bucket | 30 min |
+| 4b.5 | Add file picker UI | `expo-image-picker` + `expo-document-picker` | 1 hr |
+| 4b.6 | Update Edge Function for uploads | Base64 encode + Gemini Vision | 2 hr |
+| 4b.7 | Create `user_memory` table (pgvector) | SQL migration + embedding index | 30 min |
+| 4b.8 | Implement extraction chain | Gemini extracts facts from chat | 1.5 hr |
+| 4b.9 | Implement retrieval pipeline | Vector search on user query | 1.5 hr |
+| 4b.10 | Add verification columns to `plan_tasks` | `completed_image_url`, `actual_metadata` | 20 min |
+| 4b.11 | Build visual verification flow | Camera -> AI analysis -> DB update | 2 hr |
+
+### Exit Criteria
+- [ ] User can create and switch chat sessions
+- [ ] User can attach images/PDFs to chat
+- [ ] AI remembers facts mentioned previously (RAG)
+- [ ] User can verify meal with photo
+
+---
+
+## Phase 5: Daily Plans & Activity Logging (Days 21-26)
+
+### Goal
+AI generates personalized daily plans, users log and edit activities with AI assistance.
+
+### Tasks
+
+| # | Task | Command / Action | Est. Time |
+|---|------|------------------|-----------|
+| 5.1 | Create `plan_tasks` table (if needed) | SQL migration with `metadata` column | 20 min |
+| 5.2 | Plan generation prompt | Gemini creates workout/nutrition plan in JSON | 1.5 hr |
+| 5.3 | Build Plans tab UI | Day-wise task list with checkboxes | 2 hr |
 | 5.4 | Activity completion flow | Check off → earn XP | 1 hr |
-| 5.5 | Install WatermelonDB | `npm install @nozbe/watermelondb` | 30 min |
-| 5.6 | Offline schema | Local models for plans | 1 hr |
-| 5.7 | Sync logic | Sync on reconnection | 1.5 hr |
-| 5.8 | Plan history view | Past plans and completion rate | 1 hr |
+| 5.5 | Build "Edit with AI" modal | Long-press → prompt input | 1.5 hr |
+| 5.6 | Implement AI recalculation | Gemini adjusts plan to maintain targets | 2 hr |
+| 5.7 | Calorie progress ring | Dashboard widget: Planned vs. Actual | 1 hr |
+| 5.8 | Install WatermelonDB | `npm install @nozbe/watermelondb` | 30 min |
+| 5.9 | Offline schema | Local models for plans | 1 hr |
+| 5.10 | Sync logic | Sync on reconnection | 1.5 hr |
 
 ### Exit Criteria
 - [ ] AI generates daily plan
 - [ ] User can complete activities
+- [ ] User can edit items with AI ("Change Idli to Dosa")
+- [ ] Calorie ring shows Planned vs. Actual
 - [ ] XP awarded on completion
 - [ ] Works offline
 

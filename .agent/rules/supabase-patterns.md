@@ -1,5 +1,11 @@
 # Supabase Patterns Guide
 
+## Security 🔐
+- **NEVER** commit API keys or service tokens (Project URL/Anon Key) to Git; use `.env`.
+- Always use `process.env.EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_ANON_KEY`.
+- Ensure `.env` is in `.gitignore`.
+- Use Row Level Security (RLS) on **ALL** tables without exception.
+
 ## Database Naming Conventions
 * Table names: snake_case, plural (e.g., `daily_plans`)
 * Column names: snake_case (e.g., `created_at`)
