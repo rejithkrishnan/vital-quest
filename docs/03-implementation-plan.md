@@ -140,7 +140,7 @@ Users can sign up, log in, and complete onboarding.
 | 2.5 | Connect Auth | Wire up helper functions in `hooks/useAuth.ts` | 30 min |
 | 2.6 | Build login screen | Email/password + Google button | 1 hr |
 | 2.7 | Build onboarding wizard | 3 steps: Basic Info, Goals, Equipment | 2 hr |
-| 2.8 | Create profile screen | View/edit user data | 1 hr |
+| 2.8 | Create profile screen | View/edit user data, upload avatar from **Camera/Gallery** | 1.5 hr |
 | 2.9 | Protected routes | Redirect unauthenticated users | 30 min |
 
 ### Database Schema
@@ -288,7 +288,7 @@ Multi-session chat, file uploads, RAG memory, and visual verification.
 | 4b.2 | Build ChatHistoryModal | Session list + New Chat button | 1.5 hr |
 | 4b.3 | Integrate session switching | Update `chat.tsx` state logic | 1 hr |
 | 4b.4 | Create `chat_attachments` table | SQL migration + Storage bucket | 30 min |
-| 4b.5 | Add file picker UI | `expo-image-picker` + `expo-document-picker` | 1 hr |
+| 4b.5 | Add file picker UI | `expo-image-picker` with **Camera** and **Gallery** options | 1.5 hr |
 | 4b.6 | Update Edge Function for uploads | Base64 encode + Gemini Vision | 2 hr |
 | 4b.7 | Create `user_memory` table (pgvector) | SQL migration + embedding index | 30 min |
 | 4b.8 | Implement extraction chain | Gemini extracts facts from chat | 1.5 hr |

@@ -46,6 +46,7 @@ The system follows a **Hybrid Client-Server Architecture** enhanced by the **Mod
 * **Language:** TypeScript.
 * **UI Library:** **NativeWind v4** (Tailwind CSS for React Native).
 * **State Management:** **Zustand** (Global Store) + **TanStack Query** (Server State/Caching).
+* **Media:** **expo-image-picker** (Camera & Gallery access).
 * **Navigation:** Expo Router (File-based routing).
 * **Animations:** React Native Reanimated + Lottie.
 
@@ -89,7 +90,7 @@ app/
 
 3. **Chat Module (`/app/(tabs)/chat.tsx`)**
    * Message bubbles with markdown support.
-   * Attach button (Images/PDFs).
+   * Attach button (Direct Camera or Gallery picker).
    * History drawer (swipe from left).
    * "New Chat" button in header.
 
@@ -100,7 +101,7 @@ app/
    * Weekly comparison cards.
 
 5. **Profile Module (`/app/(tabs)/profile.tsx`)**
-   * User avatar + level.
+   * User avatar (upload via Camera/Gallery) + level.
    * Badge showcase (collectible cards).
    * Settings (Notifications, Dark Mode).
    * Streak Freeze shop.

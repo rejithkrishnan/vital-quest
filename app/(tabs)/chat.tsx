@@ -6,7 +6,7 @@ import { useGamificationStore } from '@/stores/gamificationStore';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, FlatList, Image, KeyboardAvoidingView, Modal, Platform, Pressable, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, FlatList, Image, KeyboardAvoidingView, Modal, Platform, Pressable, Text, TextInput, View, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function ChatScreen() {
@@ -18,6 +18,18 @@ export default function ChatScreen() {
   const [attachment, setAttachment] = useState<{ uri: string; type: string; name: string; mimeType: string } | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [fullScreenImage, setFullScreenImage] = useState<string | null>(null);
+  const [thinkingText, setThinkingText] = useState("Thinking...");
+
+  const FUNNY_THINKING_PHRASES = [
+    "Consulting the health oracles...",
+    "Crunching the numbers...",
+    "Firing up the neurons...",
+    "Decoding your vitality...",
+    "Asking the gym gods...",
+    "Analyzing your awesomeness...",
+    "Brewing some wisdom...",
+    "Connecting to the matrix..."
+  ];
 
   const flatListRef = useRef<FlatList>(null);
 
@@ -143,27 +155,57 @@ export default function ChatScreen() {
     loadSession(sessionId);
   };
 
-  const handlePickAttachment = async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') {
-      alert('Sorry, we need camera roll permissions to make this work!');
-      return;
-    }
+  const handlePickAttachment = () => {
+    Alert.alert(
+      "Attach Image",
+      "Take a photo or choose from gallery",
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Camera", onPress: () => pickImage('camera') },
+        { text: "Gallery", onPress: () => pickImage('gallery') }
+      ]
+    );
+  };
 
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      quality: 0.8,
-    });
+  const pickImage = async (mode: 'camera' | 'gallery') => {
+    try {
+      let result;
+      if (mode === 'camera') {
+        const { status } = await ImagePicker.requestCameraPermissionsAsync();
+        if (status !== 'granted') {
+          Alert.alert("Permission needed", "We need camera access to take a photo.");
+          return;
+        }
+        result = await ImagePicker.launchCameraAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          allowsEditing: true,
+          quality: 0.8,
+        });
+      } else {
+        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (status !== 'granted') {
+          Alert.alert("Permission needed", "We need access to your photos.");
+          return;
+        }
+        result = await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          allowsEditing: true,
+          quality: 0.8,
+        });
+      }
 
-    if (!result.canceled) {
-      const asset = result.assets[0];
-      setAttachment({
-        uri: asset.uri,
-        type: 'image',
-        name: asset.uri.split('/').pop() || 'image.jpg',
-        mimeType: asset.mimeType || 'image/jpeg'
-      });
+      if (!result.canceled) {
+        const asset = result.assets[0];
+        setAttachment({
+          uri: asset.uri,
+          type: 'image',
+          name: asset.uri.split('/').pop() || 'image.jpg',
+          mimeType: asset.mimeType || 'image/jpeg'
+        });
+      }
+    } catch (error) {
+      console.error(error);
+      Alert.alert("Error", "Failed to pick image");
     }
   };
 
@@ -219,6 +261,7 @@ export default function ChatScreen() {
     // But we need it for upload. Let's keep it until uploaded.
 
     setIsTyping(true);
+    setThinkingText(FUNNY_THINKING_PHRASES[Math.floor(Math.random() * FUNNY_THINKING_PHRASES.length)]);
     setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
 
     try {
@@ -350,11 +393,11 @@ export default function ChatScreen() {
       <SafeAreaView style={{ flex: 1, backgroundColor: '#F9FAFB' }} edges={['top']}>
         {/* Header */}
         <View className="bg-white p-4 border-b border-gray-100 flex-row items-center justify-between shadow-sm">
-          <View className="flex-row items-center space-x-3">
+          <View className="flex-row items-center">
             <View className="w-10 h-10 bg-blue-100 rounded-full items-center justify-center">
               <Ionicons name="sparkles" size={20} color="#4285F4" />
             </View>
-            <View>
+            <View className="ml-4">
               <Text className="text-lg font-bold text-gray-900">Health Coach</Text>
               <View className="flex-row items-center">
                 <View className={`w-2 h-2 rounded-full mr-1 ${isTyping ? 'bg-blue-500' : 'bg-green-500'}`} />
@@ -385,6 +428,17 @@ export default function ChatScreen() {
               onImagePress={setFullScreenImage}
             />
           )}
+          ListFooterComponent={
+            isTyping ? (
+              <View className="flex-row mb-4 animate-pulse">
+                <View className="bg-gray-200 rounded-2xl rounded-tl-none px-4 py-3 max-w-[80%]">
+                  <Text className="text-gray-600 italic text-sm">
+                    {thinkingText}
+                  </Text>
+                </View>
+              </View>
+            ) : null
+          }
           contentContainerStyle={{ padding: 16, flexGrow: 1 }}
           style={{ flex: 1 }}
           showsVerticalScrollIndicator={false}

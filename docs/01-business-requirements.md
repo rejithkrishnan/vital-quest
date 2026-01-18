@@ -44,6 +44,7 @@ The system must create a detailed digital profile of the user to inform the AI.
 * **Basic Inputs:** Age, Gender, Weight, Height, Injuries (e.g., "Left knee pain").
 * **Contextual Inputs:** Equipment available (Gym vs. Home), dietary restrictions (Vegan, Keto), and primary goal (Bulk, Cut, Maintain).
 * **Initial Calibration:** A 1-minute "Walk Test" using phone sensors to establish a baseline gait score.
+* **Profile Avatar:** Users can upload a profile picture from **Gallery** or take a new one using the **Camera**.
 
 ### **3.2. Module B: The "Brain" (AI Plan Generation via MCP)**
 
@@ -94,7 +95,7 @@ The AI chat is the central interaction hub for personalized coaching.
 * **Context Aware:** Knows the user's level, recent signals, and plan status.
 * **Persistent History:** Retains conversation history across sessions.
 * **Session Management:** Users can start "New Chat" and view previous sessions from a history drawer.
-* **Multi-modal Input:** Attach images (food photos, medical reports) and PDFs.
+* **Multi-modal Input:** Attach images (food photos, medical reports) directly from **Camera** or **Gallery**.
 * **Long-term Memory (RAG):** Extracts and indexes user details (height, weight, allergies) into a vector DB.
 * **Safety First:** Refuses medical diagnosis; refers to doctors.
 * **Visual Verification:** Capture photo of completed activity -> AI verifies and logs actual calories/reps.

@@ -2,10 +2,11 @@ import { supabase } from '@/services/supabase';
 import { useAuthStore } from '@/stores/authStore';
 import { useGamificationStore } from '@/stores/gamificationStore';
 import MemoryListModal from '@/components/MemoryListModal';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, FontAwesome5 } from '@expo/vector-icons';
 import { useEffect, useState } from 'react';
-import { Pressable, ScrollView, Text, View } from 'react-native';
+import { Pressable, ScrollView, Text, View, Alert, Image, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import * as ImagePicker from 'expo-image-picker';
 
 export default function ProfileScreen() {
     const { signOut, user } = useAuthStore();
@@ -14,6 +15,7 @@ export default function ProfileScreen() {
     // Local state for profile details (height, weight)
     const [profile, setProfile] = useState<any>(null);
     const [loading, setLoading] = useState(true);
+    const [uploading, setUploading] = useState(false);
     const [showMemoryModal, setShowMemoryModal] = useState(false);
 
     useEffect(() => {
@@ -36,6 +38,99 @@ export default function ProfileScreen() {
             console.error(error);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleAvatarPress = () => {
+        Alert.alert(
+            "Change Avatar",
+            "Choose a new profile picture",
+            [
+                { text: "Cancel", style: "cancel" },
+                { text: "Take Photo", onPress: () => pickImage('camera') },
+                { text: "Choose from Gallery", onPress: () => pickImage('gallery') }
+            ]
+        );
+    };
+
+    const pickImage = async (mode: 'camera' | 'gallery') => {
+        try {
+            let result;
+            if (mode === 'camera') {
+                const permission = await ImagePicker.requestCameraPermissionsAsync();
+                if (!permission.granted) {
+                    Alert.alert("Permission needed", "We need camera access to take a photo.");
+                    return;
+                }
+                result = await ImagePicker.launchCameraAsync({
+                    mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                    allowsEditing: true,
+                    aspect: [1, 1],
+                    quality: 0.8,
+                });
+            } else {
+                const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+                if (!permission.granted) {
+                    Alert.alert("Permission needed", "We need gallery access to choose a photo.");
+                    return;
+                }
+                result = await ImagePicker.launchImageLibraryAsync({
+                    mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                    allowsEditing: true,
+                    aspect: [1, 1],
+                    quality: 0.8,
+                });
+            }
+
+            if (!result.canceled && result.assets && result.assets.length > 0) {
+                uploadAvatar(result.assets[0].uri);
+            }
+        } catch (error) {
+            console.error(error);
+            Alert.alert("Error", "Failed to pick image");
+        }
+    };
+
+    const uploadAvatar = async (uri: string) => {
+        if (!user) return;
+        setUploading(true);
+        try {
+            const response = await fetch(uri);
+            const blob = await response.blob();
+            const arrayBuffer = await new Response(blob).arrayBuffer();
+            const fileExt = uri.split('.').pop() || 'jpg';
+            const fileName = `${user.id}/${Date.now()}.${fileExt}`;
+
+            // Upload to Supabase
+            const { error: uploadError } = await supabase.storage
+                .from('avatars')
+                .upload(fileName, arrayBuffer, {
+                    contentType: `image/${fileExt}`,
+                    upsert: true
+                });
+
+            if (uploadError) throw uploadError;
+
+            // Get Public URL
+            const { data } = supabase.storage.from('avatars').getPublicUrl(fileName);
+            const publicUrl = data.publicUrl;
+
+            // Update Profile
+            const { error: updateError } = await supabase
+                .from('profiles')
+                .update({ avatar_url: publicUrl })
+                .eq('id', user.id);
+
+            if (updateError) throw updateError;
+
+            // Update local state
+            setProfile({ ...profile, avatar_url: publicUrl });
+
+        } catch (error: any) {
+            console.error('Upload failed:', error);
+            Alert.alert("Upload Failed", error.message);
+        } finally {
+            setUploading(false);
         }
     };
 
@@ -77,14 +172,25 @@ export default function ProfileScreen() {
                 {/* Header Profile Section */}
                 <View className="bg-white p-6 pb-8 rounded-b-[32px] shadow-sm mb-6">
                     <View className="items-center">
-                        <View className="w-24 h-24 bg-gray-200 rounded-full mb-4 items-center justify-center border-4 border-white shadow-sm overflow-hidden">
-                            <Ionicons name="person" size={40} color="#9CA3AF" />
-                        </View>
+                        <Pressable onPress={handleAvatarPress} className="relative">
+                            <View className="w-24 h-24 bg-gray-200 rounded-full mb-4 items-center justify-center border-4 border-white shadow-sm overflow-hidden">
+                                {uploading ? (
+                                    <ActivityIndicator size="small" color="#4285F4" />
+                                ) : profile?.avatar_url ? (
+                                    <Image source={{ uri: profile.avatar_url }} className="w-full h-full" />
+                                ) : (
+                                    <Ionicons name="person" size={40} color="#9CA3AF" />
+                                )}
+                            </View>
+                            <View className="absolute bottom-4 right-0 bg-blue-500 rounded-full p-1.5 border-2 border-white shadow-sm">
+                                <Ionicons name="camera" size={12} color="white" />
+                            </View>
+                        </Pressable>
                         <Text className="text-2xl font-bold text-gray-900">{profile?.full_name || 'User'}</Text>
                         <Text className="text-gray-500">{user?.email}</Text>
 
                         {/* Gamification Badge */}
-                        <View className="flex-row mt-6 items-center space-x-4 w-full justify-center">
+                        <View className="flex-row mt-6 items-center gap-4 w-full justify-center">
                             <View className="bg-blue-50 px-4 py-2 rounded-xl items-center min-w-[100px]">
                                 <Text className="text-blue-600 font-bold text-lg">Lvl {level}</Text>
                                 <Text className="text-blue-400 text-xs font-medium">Rank</Text>
@@ -118,13 +224,13 @@ export default function ProfileScreen() {
                         onPress={() => setShowMemoryModal(true)}
                         className="bg-white p-4 rounded-xl border border-gray-100 flex-row items-center justify-between shadow-sm"
                     >
-                        <View className="flex-row items-center space-x-3">
+                        <View className="flex-row items-center">
                             <View className="bg-purple-100 p-2 rounded-full">
-                                <Ionicons name="bulb" size={20} color="#8B5CF6" />
+                                <FontAwesome5 name="brain" size={20} color="#8B5CF6" />
                             </View>
-                            <View>
-                                <Text className="text-gray-900 font-semibold">AI Memory</Text>
-                                <Text className="text-gray-500 text-xs">View what VitalQuest knows</Text>
+                            <View className="ml-4">
+                                <Text className="text-gray-900 font-semibold">AI Profile</Text>
+                                <Text className="text-gray-500 text-xs">View what we know about you</Text>
                             </View>
                         </View>
                         <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
