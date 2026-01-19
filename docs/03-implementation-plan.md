@@ -25,7 +25,7 @@
 | **Phase 3: Basic Gamification** | ✅ Complete | 100% |
 | **Phase 4: AI Chat** | ✅ Complete | 100% |
 | **Phase 4b: Enhanced AI** | ⏳ Pending | 0% |
-| **Phase 5: Plans & Logging** | 🔶 Partial | 30% (Schema only) |
+| **Phase 5: Plans & Logging** | 🔶 Partial | 60% (Generation Working) |
 | **Phase 6: Sensors** | ⏳ Pending | 0% |
 | **Phase 7: Advanced Gamification** | ⏳ Pending | 0% |
 | **Phase 8: Polish & Launch** | ⏳ Pending | 0% |
@@ -304,33 +304,65 @@ Multi-session chat, file uploads, RAG memory, and visual verification.
 
 ---
 
-## Phase 5: Daily Plans & Activity Logging (Days 21-26)
+## Phase 5: AI Diet Plan & Activity Logging (Days 21-30)
 
 ### Goal
-AI generates personalized daily plans, users log and edit activities with AI assistance.
+AI generates complete personalized diet/fitness plans with goal validation, meal logging (photo/text), and notifications.
 
-### Tasks
+### Phase 5a: Schema & Backend
 
-| # | Task | Command / Action | Est. Time |
-|---|------|------------------|-----------|
-| 5.1 | Create `plan_tasks` table (if needed) | SQL migration with `metadata` column | 20 min |
-| 5.2 | Plan generation prompt | Gemini creates workout/nutrition plan in JSON | 1.5 hr |
-| 5.3 | Build Plans tab UI | Day-wise task list with checkboxes | 2 hr |
-| 5.4 | Activity completion flow | Check off → earn XP | 1 hr |
-| 5.5 | Build "Edit with AI" modal | Long-press → prompt input | 1.5 hr |
-| 5.6 | Implement AI recalculation | Gemini adjusts plan to maintain targets | 2 hr |
-| 5.7 | Calorie progress ring | Dashboard widget: Planned vs. Actual | 1 hr |
-| 5.8 | Install WatermelonDB | `npm install @nozbe/watermelondb` | 30 min |
-| 5.9 | Offline schema | Local models for plans | 1 hr |
-| 5.10 | Sync logic | Sync on reconnection | 1.5 hr |
+| # | Task | Est. Time |
+|---|------|-----------|
+| 5a.1 | Create `health_goals` table migration | 30 min |
+| 5a.2 | Create `weekly_plans` table migration | 30 min |
+| 5a.3 | Create `calorie_log` table migration | 30 min |
+| 5a.4 | Update `daily_plans` with goal_id, calorie tracking fields | 20 min |
+| 5a.5 | Update `plan_tasks` with photo_url, actual_metadata, time_slot | 20 min |
+| 5a.6 | Add `validate_goal` mode to chat-agent (realism check) | 1 hr |
+| 5a.7 | Add `generate_full_plan` mode (complete upfront plan) | 2 hr |
+| 5a.8 | Add `analyze_meal` mode (photo OR text → calories) | 1.5 hr |
+| 5a.9 | Create plan storage logic (parse AI JSON → bulk insert) | ✅ 1.5 hr |
+
+### Phase 5b: Plan Generation UI
+
+| # | Task | Est. Time |
+|---|------|-----------|
+| 5b.1 | Create `goalsStore.ts` (Zustand store for goals/plans) | ✅ 45 min |
+| 5b.2 | Create `GoalProgressWidget` component (Home tab) | ✅ 1 hr |
+| 5b.3 | Update Home tab with Goal widget | ✅ 30 min |
+| 5b.4 | Create `PlanHeader` component (daily targets) | ✅ 45 min |
+| 5b.5 | Update Plans tab - fetch real data from DB | ✅ 1.5 hr |
+| 5b.6 | Implement plan generation flow in Chat (with validation) | ✅ 2 hr |
+| 5b.7 | Add segmented control (Meals \| Workout \| All) | ✅ 45 min |
+
+### Phase 5c: Meal Logging (Photo/Text)
+
+| # | Task | Est. Time |
+|---|------|-----------|
+| 5c.1 | Add Log button to task items with options Alert | 30 min |
+| 5c.2 | Create `MealLogModal` (text input + AI calculation) | 1 hr |
+| 5c.3 | Create `PhotoVerificationModal` (AI analysis display) | 1 hr |
+| 5c.4 | Implement photo upload to Supabase Storage | 30 min |
+| 5c.5 | Call AI for photo/text analysis | 1 hr |
+| 5c.6 | Update task with actual values + auto-log to calorie_log | 45 min |
+| 5c.7 | Update daily totals on completion | 30 min |
+
+### Phase 5d: Notifications
+
+| # | Task | Est. Time |
+|---|------|-----------|
+| 5d.1 | Install `expo-notifications` | 15 min |
+| 5d.2 | Request notification permissions | 15 min |
+| 5d.3 | Schedule meal/workout reminders on plan creation | 1 hr |
+| 5d.4 | Handle notification taps → navigate to Plans | 30 min |
 
 ### Exit Criteria
-- [ ] AI generates daily plan
-- [ ] User can complete activities
-- [ ] User can edit items with AI ("Change Idli to Dosa")
-- [ ] Calorie ring shows Planned vs. Actual
-- [ ] XP awarded on completion
-- [ ] Works offline
+- [ ] AI validates goal realism and rejects unrealistic goals
+- [ ] Complete plan generated upfront for entire goal period
+- [ ] User can log meals via photo, text, or as-planned
+- [ ] Calorie tracker auto-updates on completion
+- [ ] Push notifications for meals/workouts
+- [ ] XP awarded on task completion
 
 ---
 

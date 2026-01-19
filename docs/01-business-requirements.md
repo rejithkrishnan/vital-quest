@@ -50,15 +50,29 @@ The system must create a detailed digital profile of the user to inform the AI.
 
 Using the **Model Context Protocol (MCP)**, the app connects Gemini to data tools to generate plans.
 
-* **Dynamic Planning:**
-* **Workout:** Generates a weekly schedule (sets, reps, rest) adjusted for injuries.
-* **Nutrition:** Calculates precise macro targets (Protein/Carb/Fat) and meal suggestions.
+* **Goal Validation:**
+    * AI validates if user's goal is realistic (e.g., max 1kg/week weight loss).
+    * Unrealistic goals are **rejected with a clear warning** and a suggested safe alternative.
 
+* **Upfront Complete Plan Generation:**
+    * When user sets a goal (e.g., "Lose 5kg in 8 weeks"), AI generates the **complete plan upfront**.
+    * Includes: All weeks, all daily plans, every meal with specific times, workouts.
+    * No daily regeneration - user sees their full journey ahead.
+
+* **Dynamic Planning:**
+    * **Workout:** Generates a weekly schedule (sets, reps, rest) adjusted for injuries.
+    * **Nutrition:** Calculates precise macro targets (Protein/Carb/Fat) and meal suggestions.
 
 * **Real-time Adaptation:**
-* *User:* "I only have 15 mins today."
-* *System:* Instantly rewrites the day's session to a high-intensity interval training (HIIT) session.
-* **Interactive Editing:** Users can modify specific line items (e.g., "Change 2 Idli to 3 Dosa"); the AI recalculates the rest of the day's plan to maintain calorie/macro targets.
+    * *User:* "I only have 15 mins today."
+    * *System:* Instantly rewrites the day's session.
+
+* **Goal Modification:**
+    * User can modify goal mid-plan (e.g., change from 5kg to 3kg).
+    * AI **updates remaining plan** while preserving completed days.
+    * Plan must remain realistic; AI warns if modification is unsafe.
+
+* **Interactive Editing:** Users can modify specific line items; AI recalculates remaining day.
 
 
 
@@ -99,6 +113,23 @@ The AI chat is the central interaction hub for personalized coaching.
 * **Long-term Memory (RAG):** Extracts and indexes user details (height, weight, allergies) into a vector DB.
 * **Safety First:** Refuses medical diagnosis; refers to doctors.
 * **Visual Verification:** Capture photo of completed activity -> AI verifies and logs actual calories/reps.
+
+### **3.6. Module F: Meal Logging & Calorie Tracking**
+
+* **Flexible Input:** User can log meals via:
+    * **Photo** (Camera or Gallery) - AI analyzes image and estimates calories.
+    * **Text** - User types what they ate, AI calculates nutrition.
+    * **As Planned** - Mark task complete using planned values.
+* **AI Verification:** Shows estimated calories with confidence level; user confirms before logging.
+* **Auto Calorie Tracking:** Completed meals auto-log to a calorie tracker; daily totals update in real-time.
+* **Variance Alerts:** If actual calories differ significantly from plan, show warning.
+
+### **3.7. Module G: Notifications & Reminders**
+
+* **Meal Reminders:** Push notifications at scheduled meal times (e.g., "Breakfast in 30 minutes").
+* **Workout Reminders:** Remind user of scheduled workout with motivational message.
+* **Streak Protection:** Warn user if streak is at risk ("Log something today to keep your 7-day streak!").
+* **Custom Scheduling:** Notifications based on plan's `time_slot` values.
 
 ---
 

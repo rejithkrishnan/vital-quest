@@ -230,7 +230,193 @@ serve(async (req: Request) => {
       });
     }
 
-    // Special handling for 'plan' mode
+    // --- 5a.8: Goal Intake Mode (Conversational) ---
+    if (mode === 'goal_intake') {
+      const intakePrompt = `
+        You are VitalQuest, an AI Health Coach. Your goal is to conduct a short interview to build a personalized health plan.
+        
+        USER CONTEXT: ${JSON.stringify(context || {})}
+        
+        MEMORY BANK (Past Conversations):
+        ${retrievedContext}
+        
+        REQUIRED INFORMATION:
+        1. Main Goal (e.g., Lose weight, Build muscle)
+        2. Current Attributes (Age, Height, Weight)
+        3. Target (Target Weight)
+        4. Timeline (How many weeks?)
+        5. Preferences (Diet style, Activity level, Injuries?)
+        
+        INSTRUCTIONS:
+        1. **FIRST TURN Analysis**: 
+           - Scan the "MEMORY BANK" and "USER CONTEXT" for any of the required info.
+           - If you find relevant details (e.g., "User mentioned weight is 85kg last week"), START the conversation by listing what you know.
+           - Example: "Hi! To build your plan, I recall your goal is to lose weight and you are currently 85kg. Is that still accurate?"
+        
+        2. **Subsequent Turns**:
+           - If the user confirms the data, mark it as collected.
+           - If the user corrects it, update your understanding.
+           - Ask ONE clear question at a time for the *missing* info.
+        
+        3. **Completion**:
+           - If the user provides multiple details at once, acknowledge them.
+           - If ALL required information is present and confirmed by the user, output specific JSON.
+        
+        OUTPUT FORMAT:
+        - If information is MISSING: Respond in plain text (natural language) asking the next question.
+        - If ALL information is COLLECTED:
+          Output JSON ONLY:
+          {
+            "status": "complete",
+            "data": {
+              "goal": "...",
+              "age": number,
+              "height": number,
+              "weight": number,
+              "target_weight": number,
+              "duration_weeks": number,
+              "diet": "...",
+              "activity": "...",
+              "limitations": "..."
+            },
+            "summary": "Brief summary of the plan you are about to build."
+          }
+      `;
+
+      systemPrompt = intakePrompt;
+      // Using standard generating logic at the end
+    }
+
+    // --- 5a.7: Generate Roadmap (was Generate Full Plan) ---
+    if (mode === 'generate_roadmap') {
+      systemPrompt = `
+         Generate a High-Level Roadmap and Day 1 Plan.
+         
+         USER CONTEXT:
+         - Name: ${effectiveName}
+         - Height: ${context?.height} cm | Weight: ${context?.weight} kg | Age: ${context?.age}
+         - Goal: ${context?.goalDescription}
+         - Diet: ${context?.dietPreference} | Activity: ${context?.activityLevel}
+         - Target: ${context?.targetValue} ${context?.targetUnit} in ${context?.durationWeeks} weeks
+         
+         OUTPUT FORMAT (JSON ONLY):
+         {
+           "goal_summary": "Encouraging summary of the goal",
+           "daily_calorie_target": number,
+           "macros": { "protein": number, "carbs": number, "fat": number },
+           "weekly_plans": [
+              { "week": 1, "focus": "...", "calorie_target": number, "ai_tips": "..." },
+              { "week": 2, "focus": "...", "calorie_target": number, "ai_tips": "..." },
+               ... (for all ${context?.durationWeeks} weeks)
+           ],
+           "day_1_tasks": {
+             "meals": [
+                { "meal_type": "breakfast", "time": "08:00", "description": "...", "calories": number, "protein": num, "carbs": num, "fat": num },
+                { "meal_type": "lunch", ... },
+                { "meal_type": "dinner", ... },
+                { "meal_type": "snack", ... }
+             ],
+             "workouts": [
+                { "time": "18:00", "description": "...", "duration": "30 min", "calories_burned": number, "exercises": ["..."] }
+             ]
+           }
+         }
+         
+         RULES:
+         1. Indian food preferences by default unless specified.
+         2. Generate a 'weekly_plan' item for EVERY week in the duration.
+         3. Generate detailed 'day_1_tasks' ONLY for Day 1.
+         4. Output valid JSON only.
+         `;
+    }
+
+    // --- 5a.9: Generate Daily Tasks (Lazy Load) ---
+    if (mode === 'generate_daily_tasks') {
+      systemPrompt = `
+         Generate daily tasks for Day ${context?.dayNumber || '?'} of Week ${context?.weekNumber || '?'}.
+         
+         CONTEXT:
+         - Goal: ${context?.goalDescription}
+         - Week Focus: ${context?.weekFocus}
+         - Calorie Target: ${context?.calorieTarget}
+         - Diet: ${context?.dietPreference}
+         
+         OUTPUT JSON ONLY:
+         {
+           "meals": [ ... ],
+           "workouts": [ ... ]
+         }
+         
+         Rule: Create a balanced day fitting the calorie target and week focus.
+       `;
+    }
+
+    // --- 5a.6: Goal Validation Mode ---
+    if (mode === 'validate_goal') {
+      const validationPrompt = `
+        TASK: Validate if the user's health goal is realistic and safe.
+        
+        USER REQUEST: ${context?.goalDescription || message}
+        CURRENT WEIGHT: ${context?.weight} kg
+        TARGET: ${context?.targetValue} ${context?.targetUnit}
+        TIMELINE: ${context?.durationWeeks} weeks
+        
+        SAFETY RULES:
+        - Weight loss: Max 1kg per week (0.5-0.75kg is ideal).
+        - Weight gain: Max 0.5kg per week.
+        - Minimum timeline: 2 weeks.
+        
+        Output JSON object ONLY:
+        {
+          "is_realistic": true/false,
+          "reason": "Clear explanation to the user",
+          "suggested_timeline_weeks": number (safe duration if unrealistic, else null),
+          "rate_per_week": number
+        }
+        `;
+
+      const validationBody = {
+        contents: [{ role: 'user', parts: [{ text: validationPrompt }] }],
+        generationConfig: { responseMimeType: "application/json" }
+      };
+
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(validationBody),
+        }
+      );
+
+      const data = await response.json();
+      const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+      return new Response(JSON.stringify({ text }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
+    // --- 5a.8: Analyze Meal Mode (Photo or Text) ---
+    if (mode === 'analyze_meal') {
+      const analysisPrompt = `
+        Analyze this food (image or text) and estimate nutritional content.
+        
+        Planned Meal (if any): ${context?.plannedMeal || 'N/A'}
+        User Description: ${message || 'See image'}
+        
+        Respond with JSON ONLY:
+        {
+          "detected_food": "Description of what you see/read",
+          "calories": number,
+          "protein": number,
+          "carbs": number,
+          "fat": number,
+          "confidence": "high" | "medium" | "low",
+          "notes": "E.g., High in sugar, good protein source..."
+        }
+        `;
+
+      // We reuse the main logic which handles attachments (images) and text
+      systemPrompt = analysisPrompt;
+    }
     if (mode === 'plan') {
       systemPrompt = `You are VitalQuest. Generate a personalized daily health plan for the user.
       User Context: ${JSON.stringify(context || {})}
@@ -258,17 +444,23 @@ serve(async (req: Request) => {
       parts: [{ text: systemPrompt }]
     };
 
-    if (mode === 'plan') {
+    if (mode === 'plan' || mode === 'generate_full_plan') {
       requestBody.contents = [
         {
           role: 'user',
           parts: [{ text: systemPrompt }]
         }
       ];
+      requestBody.generationConfig = { responseMimeType: "application/json" };
       delete requestBody.system_instruction;
     } else {
-      // Chat mode with history
-      if (history && Array.isArray(history)) {
+      // Chat mode with history (or analyze_meal)
+      if (mode === 'analyze_meal') {
+        requestBody.generationConfig = { responseMimeType: "application/json" };
+      }
+
+      // Add history only if NOT analyze_meal (keep analysis context clean)
+      if (mode !== 'analyze_meal' && history && Array.isArray(history)) {
         requestBody.contents = requestBody.contents.concat(history);
       }
 
@@ -348,9 +540,16 @@ serve(async (req: Request) => {
     }
 
     let aiText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    console.log("Gemini Response Raw:", aiText);
 
-    if (mode === 'plan' && aiText) {
-      aiText = aiText.replace(/```json/g, '').replace(/```/g, '').trim();
+    if ((mode === 'plan' || mode === 'generate_roadmap' || mode === 'generate_daily_tasks' || mode === 'analyze_meal' || mode === 'goal_intake') && aiText) {
+      // Clean markdown if present, but only if it looks like a JSON block or we are in a JSON-only mode
+      if (aiText.includes('```json')) {
+        aiText = aiText.replace(/```json/g, '').replace(/```/g, '').trim();
+      } else if (mode !== 'goal_intake') {
+        // For purely JSON modes, aggressive strip
+        aiText = aiText.replace(/```/g, '').trim();
+      }
     }
 
     return new Response(JSON.stringify({ text: aiText }), {

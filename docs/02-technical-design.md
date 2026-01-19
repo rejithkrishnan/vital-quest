@@ -238,9 +238,55 @@ The backend hosts the **MCP Host**. When Gemini decides to take an action, it ca
 * `embedding` (vector(768)) -- Gemini Embedding dimensions
 * `created_at` (timestamptz)
 
+**9. `health_goals`** (NEW)
+
+* `id` (UUID, PK)
+* `user_id` (UUID, FK → profiles.id)
+* `goal_type` (text: 'weight_loss' | 'muscle_gain' | 'maintenance')
+* `target_value` (decimal, target weight in kg)
+* `start_value` (decimal, starting weight)
+* `start_date` (date)
+* `target_date` (date)
+* `duration_weeks` (integer)
+* `daily_calorie_target` (integer)
+* `protein_target` (integer)
+* `carbs_target` (integer)
+* `fat_target` (integer)
+* `status` (text: 'active' | 'completed' | 'modified')
+* `is_realistic` (boolean) -- AI validated
+* `ai_summary` (text)
+* `created_at`, `updated_at` (timestamptz)
+
+**10. `weekly_plans`** (NEW)
+
+* `id` (UUID, PK)
+* `goal_id` (UUID, FK → health_goals.id)
+* `user_id` (UUID, FK → profiles.id)
+* `week_number` (integer)
+* `week_start_date` (date)
+* `calorie_target` (integer)
+* `focus_areas` (JSONB)
+* `ai_tips` (text)
+* `status` (text: 'upcoming' | 'in_progress' | 'completed')
+* `created_at` (timestamptz)
+
+**11. `calorie_log`** (NEW)
+
+* `id` (UUID, PK)
+* `user_id` (UUID, FK → profiles.id)
+* `log_date` (date)
+* `task_id` (UUID, FK → plan_tasks.id, nullable)
+* `log_type` (text: 'food' | 'exercise')
+* `description` (text)
+* `calories` (integer)
+* `protein`, `carbs`, `fat` (integer)
+* `source` (text: 'plan' | 'manual' | 'photo_ai' | 'text_ai')
+* `created_at` (timestamptz)
+
 ### **4.3. Storage Buckets**
 * `chat-attachments`: Private bucket for user uploads (Images, PDFs). Policies restricted to owner.
-* `updated_at` (timestamptz)
+* `avatars`: Public bucket for profile pictures. Per-user folder structure.
+* `meal-photos`: Private bucket for meal verification photos. (NEW)
 
 ---
 

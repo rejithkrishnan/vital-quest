@@ -1,4 +1,5 @@
 import DailyPlanWidget from '@/components/DailyPlanWidget';
+import GoalProgressWidget from '@/components/GoalProgressWidget';
 import GamificationWidget from '@/components/GamificationWidget';
 import { useAuthStore } from '@/stores/authStore';
 import { useGamificationStore } from '@/stores/gamificationStore';
@@ -22,6 +23,9 @@ export default function HomeScreen() {
           <Text className="text-gray-500 font-medium">Welcome back,</Text>
           <Text className="text-3xl font-bold text-gray-900">{user?.user_metadata?.full_name?.split(' ')[0] || 'Questor'}</Text>
         </View>
+
+        {/* Goal Progress Widget */}
+        <GoalProgressWidget />
 
         {/* Stats Widget */}
         <GamificationWidget />

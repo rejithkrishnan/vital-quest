@@ -6,10 +6,20 @@ import { useGamificationStore } from '@/stores/gamificationStore';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, FlatList, Image, KeyboardAvoidingView, Modal, Platform, Pressable, Text, TextInput, View, Alert } from 'react-native';
+import { ActivityIndicator, FlatList, Image, KeyboardAvoidingView, Modal, Platform, Pressable, Text, TextInput, View, Alert, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { useGoalsStore } from '@/stores/goalsStore';
+import { useRouter } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
+
 export default function ChatScreen() {
+  const router = useRouter();
+  const { action } = useLocalSearchParams();
+  const [isGoalIntake, setIsGoalIntake] = useState(false);
+
+  const { validateGoalWithAI, generateFullPlan } = useGoalsStore();
+
   const [message, setMessage] = useState('');
   const [messages, setMessages] = useState<{ id: string; text: string; isUser: boolean; attachmentUrl?: string | null }[]>([]);
   const [isTyping, setIsTyping] = useState(false);
@@ -39,8 +49,13 @@ export default function ChatScreen() {
   // Load most recent session on mount
   useEffect(() => {
     if (!user) return;
-    loadMostRecentSession();
-  }, [user]);
+
+    if (action === 'create_plan') {
+      handleNewChat(true); // Start fresh with intake
+    } else {
+      loadMostRecentSession();
+    }
+  }, [user, action]);
 
   const loadMostRecentSession = async () => {
     if (!user) return;
@@ -71,32 +86,6 @@ export default function ChatScreen() {
     setCurrentSessionId(sessionId);
     setMessages([]); // Clear current messages while loading
 
-    const { data, error } = await supabase
-      .from('chat_messages')
-      .select('*')
-      .eq('session_id', sessionId)
-      .order('created_at', { ascending: true });
-
-    if (error) {
-      console.error('Error fetching session messages:', error);
-      return;
-    }
-
-    const history = (data || []).map(msg => {
-      // Find attachment for this message
-      // Since we didn't fetch attachments in the initial join, we need to fix the query.
-      // But wait, the previous query was just `select('*')`.
-      // We need to join with chat_attachments or fetch them.
-      // For now, let's assume we can fetch them separately or update the query.
-      return {
-        id: msg.id,
-        text: msg.text,
-        isUser: msg.role === 'user',
-        // attachmentUrl: ... need to fetch these
-      };
-    });
-
-    // Actually, let's update the query to fetch attachments
     const { data: messagesWithAttachments, error: msgError } = await supabase
       .from('chat_messages')
       .select(`
@@ -107,7 +96,8 @@ export default function ChatScreen() {
             )
         `)
       .eq('session_id', sessionId)
-      .order('created_at', { ascending: true });
+      .order('created_at', { ascending: true })
+      .limit(50); // Optimization: Limit to last 50 messages
 
     if (msgError) {
       console.error('Error fetching messages:', msgError);
@@ -142,18 +132,30 @@ export default function ChatScreen() {
     }
   };
 
-  const handleNewChat = () => {
+  const handleNewChat = (startIntake = false) => {
     setCurrentSessionId(null);
-    setMessages([{
-      id: 'welcome',
-      text: "Hello! I'm VitalQuest, your AI Health Coach. How can I help you today?",
-      isUser: false
-    }]);
+    setIsGoalIntake(startIntake);
+
+    if (startIntake) {
+      setMessages([{
+        id: 'intake-start',
+        text: "Hi! I'm ready to build your personalized health plan. To get started, what is your main health goal? (e.g., Lose weight, Build muscle, Run a marathon)",
+        isUser: false
+      }]);
+    } else {
+      setMessages([{
+        id: 'welcome',
+        text: "Hello! I'm VitalQuest, your AI Health Coach. How can I help you today?",
+        isUser: false
+      }]);
+    }
   };
 
   const handleSelectSession = (sessionId: string) => {
     loadSession(sessionId);
   };
+
+
 
   const handlePickAttachment = () => {
     Alert.alert(
@@ -334,6 +336,7 @@ export default function ChatScreen() {
         }));
 
       // 7. Call AI
+      const mode = isGoalIntake ? 'goal_intake' : undefined;
       const { data, error } = await supabase.functions.invoke('chat-agent', {
         body: {
           message: userMsgText,
@@ -352,7 +355,54 @@ export default function ChatScreen() {
 
       if (error) throw error;
 
-      const aiResponse = data.text || "I received your message.";
+      let aiResponse = data.text || "I received your message.";
+      console.log("AI Response (Chat):", aiResponse);
+
+      // Handle Goal Intake Completion
+      if (isGoalIntake) {
+        try {
+          // Improved Check: Search for JSON block instead of strict startsWith
+          // Look for { ... "status": "complete" ... }
+          const jsonMatch = aiResponse.match(/\{[\s\S]*"status":\s*"complete"[\s\S]*\}/);
+
+          if (jsonMatch) {
+            const intakeResult = JSON.parse(jsonMatch[0]);
+            if (intakeResult.status === 'complete') {
+              // 1. Show the summary message first
+              const summaryMsg = intakeResult.summary || "Great! I have everything I need. Generating your plan now...";
+              setMessages(prev => [...prev, {
+                id: (Date.now() + 1).toString(),
+                text: summaryMsg,
+                isUser: false
+              }]);
+
+              // 2. Trigger Plan Generation
+              setIsTyping(true);
+              setThinkingText("Generating your full roadmap...");
+
+              try {
+                await useGoalsStore.getState().generateFullPlan('new-goal', {
+                  ...intakeResult.data,
+                  userId: user.id
+                });
+
+                setIsGoalIntake(false);
+                Alert.alert("Success!", "Your plan is ready!", [
+                  { text: "View Plan", onPress: () => router.push('/(tabs)/plans') }
+                ]);
+                aiResponse = "Plan generated successfully! Check the Plans tab.";
+
+              } catch (planError: any) {
+                Alert.alert("Plan Generation Failed", planError.message);
+                aiResponse = "I couldn't generate the plan due to an error. Please try again.";
+              }
+            }
+          }
+        } catch (e) {
+          console.log("Not a completion JSON:", e);
+          // Continue as normal text
+        }
+      }
 
       // 8. Update UI with AI Response
       setMessages(prev => [...prev, {
@@ -394,6 +444,7 @@ export default function ChatScreen() {
         {/* Header */}
         <View className="bg-white p-4 border-b border-gray-100 flex-row items-center justify-between shadow-sm">
           <View className="flex-row items-center">
+            {/* ... existing header content ... */}
             <View className="w-10 h-10 bg-blue-100 rounded-full items-center justify-center">
               <Ionicons name="sparkles" size={20} color="#4285F4" />
             </View>
@@ -406,14 +457,15 @@ export default function ChatScreen() {
             </View>
           </View>
           <View className="flex-row items-center">
-            <Pressable onPress={handleNewChat} className="p-2 mr-1">
+            {/* Toggle Wizard Button */}
+
+            <Pressable onPress={() => handleNewChat(false)} className="p-2 mr-1">
               <Ionicons name="add" size={28} color="#4285F4" />
-            </Pressable>
-            <Pressable onPress={() => setShowHistory(true)} className="p-2">
-              <Ionicons name="time-outline" size={24} color="#6B7280" />
             </Pressable>
           </View>
         </View>
+
+
 
         {/* Chat Messages */}
         <FlatList
@@ -507,8 +559,8 @@ export default function ChatScreen() {
         visible={showHistory}
         onClose={() => setShowHistory(false)}
         onSelectSession={handleSelectSession}
-        onNewChat={handleNewChat}
-        onDeleteSession={handleNewChat}
+        onNewChat={() => handleNewChat(false)}
+        onDeleteSession={() => handleNewChat(false)}
         currentSessionId={currentSessionId}
       />
 
