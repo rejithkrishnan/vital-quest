@@ -15,9 +15,10 @@ interface PlanHeaderProps {
         carbs: { current: number; target: number };
         fat: { current: number; target: number };
     };
+    onPressCalendar?: () => void;
 }
 
-export default function PlanHeader({ date, calories, macros }: PlanHeaderProps) {
+export default function PlanHeader({ date, calories, macros, onPressCalendar }: PlanHeaderProps) {
     const remaining = calories.target - calories.consumed + calories.burned;
 
     return (
@@ -31,35 +32,40 @@ export default function PlanHeader({ date, calories, macros }: PlanHeaderProps) 
                         {date.toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'short' })}
                     </Text>
                 </View>
-                <TouchableOpacity className="bg-gray-100 p-2 rounded-full">
+                <TouchableOpacity
+                    onPress={onPressCalendar}
+                    className="bg-gray-100 p-2 rounded-full"
+                >
                     <Ionicons name="calendar-outline" size={20} color="#374151" />
                 </TouchableOpacity>
             </View>
 
-            <LinearGradient
-                colors={['#1F2937', '#111827']}
-                className="p-5 rounded-3xl shadow-lg"
-            >
-                <View className="flex-row justify-between items-center mb-6">
-                    <View>
-                        <Text className="text-gray-400 text-xs mb-1">Calories Remaining</Text>
-                        <Text className="text-3xl font-bold text-white">{remaining}</Text>
+            <View className="rounded-[32px] overflow-hidden shadow-xl elevation-5 bg-gray-900">
+                <LinearGradient
+                    colors={['#1F2937', '#111827']}
+                    className="p-5"
+                >
+                    <View className="flex-row justify-between items-center mb-6">
+                        <View>
+                            <Text className="text-gray-400 text-xs mb-1">Calories Remaining</Text>
+                            <Text className="text-4xl font-bold text-white tracking-tight">{remaining}</Text>
+                        </View>
+                        <View className="items-end">
+                            <Text className="text-gray-400 text-xs mb-1">Target: {calories.target}</Text>
+                            <Text className="text-green-400 text-xs font-semibold">
+                                {calories.consumed} in · {calories.burned} out
+                            </Text>
+                        </View>
                     </View>
-                    <View className="items-end">
-                        <Text className="text-gray-400 text-xs mb-1">Target: {calories.target}</Text>
-                        <Text className="text-green-400 text-xs font-medium">
-                            {calories.consumed} in · {calories.burned} out
-                        </Text>
-                    </View>
-                </View>
 
-                {/* Macros */}
-                <View className="flex-row gap-4">
-                    <MacroBar label="Protein" current={macros.protein.current} target={macros.protein.target} color="bg-blue-500" />
-                    <MacroBar label="Carbs" current={macros.carbs.current} target={macros.carbs.target} color="bg-green-500" />
-                    <MacroBar label="Fat" current={macros.fat.current} target={macros.fat.target} color="bg-yellow-500" />
-                </View>
-            </LinearGradient>
+                    {/* Macros */}
+                    <View className="flex-row gap-4">
+                        <MacroBar label="Protein" current={macros.protein.current} target={macros.protein.target} color="bg-blue-500" />
+                        <MacroBar label="Carbs" current={macros.carbs.current} target={macros.carbs.target} color="bg-green-500" />
+                        <MacroBar label="Fat" current={macros.fat.current} target={macros.fat.target} color="bg-yellow-500" />
+                    </View>
+                </LinearGradient>
+            </View>
         </View>
     );
 }

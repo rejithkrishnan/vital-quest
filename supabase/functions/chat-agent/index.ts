@@ -233,53 +233,43 @@ serve(async (req: Request) => {
     // --- 5a.8: Goal Intake Mode (Conversational) ---
     if (mode === 'goal_intake') {
       const intakePrompt = `
-        You are VitalQuest, an AI Health Coach. Your goal is to conduct a short interview to build a personalized health plan.
-        
+        You are VitalQuest, an AI Health Coach. Your ONLY job is to collect the 4 required pieces of information below, then output JSON. DO NOT provide plans, advice, or long explanations during this phase.
+
         USER CONTEXT: ${JSON.stringify(context || {})}
         
         MEMORY BANK (Past Conversations):
         ${retrievedContext}
         
-        REQUIRED INFORMATION:
-        1. Main Goal (e.g., Lose weight, Build muscle)
-        2. Current Attributes (Age, Height, Weight)
-        3. Target (Target Weight)
-        4. Timeline (How many weeks?)
-        5. Preferences (Diet style, Activity level, Injuries?)
+        REQUIRED INFORMATION (Collect these 4 items):
+        1. Main Goal (e.g., "Lose weight", "Build muscle")
+        2. Current Weight (in kg)
+        3. Target Weight (in kg)
+        4. Timeline (in weeks or months, convert to weeks internally)
         
-        INSTRUCTIONS:
-        1. **FIRST TURN Analysis**: 
-           - Scan the "MEMORY BANK" and "USER CONTEXT" for any of the required info.
-           - If you find relevant details (e.g., "User mentioned weight is 85kg last week"), START the conversation by listing what you know.
-           - Example: "Hi! To build your plan, I recall your goal is to lose weight and you are currently 85kg. Is that still accurate?"
-        
-        2. **Subsequent Turns**:
-           - If the user confirms the data, mark it as collected.
-           - If the user corrects it, update your understanding.
-           - Ask ONE clear question at a time for the *missing* info.
-        
-        3. **Completion**:
-           - If the user provides multiple details at once, acknowledge them.
-           - If ALL required information is present and confirmed by the user, output specific JSON.
-        
+        CONVERSATION FLOW:
+        1. **First Turn:** Greet user. Check MEMORY BANK for any known info. If found, state it: "I recall you're 85kg. Is that correct?" Ask for the FIRST missing item.
+        2. **Subsequent Turns:** Acknowledge what user provided. Ask for the NEXT missing item. Keep responses SHORT (1-2 sentences max).
+        3. **Confirmation Turn:** Once you have all 4 items, summarize them in 1-2 sentences and ask: "Ready for me to generate your personalized plan?"
+        4. **Final Turn (After User Says Yes/Confirm):** Output the JSON below. DO NOT say anything else. No "Great!", no explanation. Just the JSON.
+
+        CRITICAL RULES:
+        - DO NOT give diet advice, workout plans, or detailed explanations during intake.
+        - Keep ALL responses under 3 sentences until the confirmation turn.
+        - If user asks questions, briefly answer then redirect: "I can explain more once your plan is ready. For now, what's your [missing item]?"
+
         OUTPUT FORMAT:
-        - If information is MISSING: Respond in plain text (natural language) asking the next question.
-        - If ALL information is COLLECTED:
-          Output JSON ONLY:
+        - If info is MISSING or awaiting confirmation: Respond in plain text (short).
+        - If user has confirmed and ALL 4 items are collected:
+          Output this JSON structure ONLY (no other text):
           {
             "status": "complete",
             "data": {
-              "goal": "...",
-              "age": number,
-              "height": number,
+              "goal": "lose_weight or build_muscle",
               "weight": number,
               "target_weight": number,
-              "duration_weeks": number,
-              "diet": "...",
-              "activity": "...",
-              "limitations": "..."
+              "duration_weeks": number
             },
-            "summary": "Brief summary of the plan you are about to build."
+            "summary": "One sentence summary of the plan."
           }
       `;
 
@@ -293,11 +283,10 @@ serve(async (req: Request) => {
          Generate a High-Level Roadmap and Day 1 Plan.
          
          USER CONTEXT:
-         - Name: ${effectiveName}
-         - Height: ${context?.height} cm | Weight: ${context?.weight} kg | Age: ${context?.age}
-         - Goal: ${context?.goalDescription}
-         - Diet: ${context?.dietPreference} | Activity: ${context?.activityLevel}
-         - Target: ${context?.targetValue} ${context?.targetUnit} in ${context?.durationWeeks} weeks
+         - Goal: ${context?.goal || 'lose_weight'}
+         - Current Weight: ${context?.weight} kg
+         - Target Weight: ${context?.target_weight} kg
+         - Duration: ${context?.duration_weeks} weeks
          
          OUTPUT FORMAT (JSON ONLY):
          {
@@ -307,7 +296,7 @@ serve(async (req: Request) => {
            "weekly_plans": [
               { "week": 1, "focus": "...", "calorie_target": number, "ai_tips": "..." },
               { "week": 2, "focus": "...", "calorie_target": number, "ai_tips": "..." },
-               ... (for all ${context?.durationWeeks} weeks)
+               ... (for all ${context?.duration_weeks} weeks)
            ],
            "day_1_tasks": {
              "meals": [
@@ -324,9 +313,10 @@ serve(async (req: Request) => {
          
          RULES:
          1. Indian food preferences by default unless specified.
-         2. Generate a 'weekly_plan' item for EVERY week in the duration.
+         2. Generate a 'weekly_plan' item for EVERY week in the duration (${context?.duration_weeks} weeks).
          3. Generate detailed 'day_1_tasks' ONLY for Day 1.
-         4. Output valid JSON only.
+         4. Output valid JSON only. No markdown, no backticks.
+         5. Calculate appropriate calorie deficit for safe weight loss (0.5-1kg/week).
          `;
     }
 
@@ -341,13 +331,23 @@ serve(async (req: Request) => {
          - Calorie Target: ${context?.calorieTarget}
          - Diet: ${context?.dietPreference}
          
-         OUTPUT JSON ONLY:
+         OUTPUT JSON ONLY (Strict Schema):
          {
-           "meals": [ ... ],
-           "workouts": [ ... ]
+           "meals": [ 
+             { "meal_type": "breakfast", "time": "08:00", "description": "Specific meal description", "calories": number, "protein": number, "carbs": number, "fat": number },
+             { "meal_type": "lunch", "time": "13:00", "description": "...", "calories": number, ... },
+             { "meal_type": "dinner", "time": "19:00", "description": "...", "calories": number, ... },
+             { "meal_type": "snack", "time": "16:00", "description": "...", "calories": number, ... }
+           ],
+           "workouts": [ 
+             { "time": "18:00", "description": "Specific workout details", "duration": "30 min", "calories_burned": number } 
+           ]
          }
          
-         Rule: Create a balanced day fitting the calorie target and week focus.
+         Rules:
+         1. Ensure EVERY meal has a 'time', 'calories', and 'description'.
+         2. Ensure total calories sum up close to the target (${context?.calorieTarget}).
+         3. Return valid JSON only.
        `;
     }
 
@@ -414,7 +414,6 @@ serve(async (req: Request) => {
         }
         `;
 
-      // We reuse the main logic which handles attachments (images) and text
       systemPrompt = analysisPrompt;
     }
     if (mode === 'plan') {
@@ -444,7 +443,8 @@ serve(async (req: Request) => {
       parts: [{ text: systemPrompt }]
     };
 
-    if (mode === 'plan' || mode === 'generate_full_plan') {
+    // Handle plan generation modes (require JSON output)
+    if (mode === 'plan' || mode === 'generate_full_plan' || mode === 'generate_roadmap' || mode === 'generate_daily_tasks' || mode === 'analyze_meal') {
       requestBody.contents = [
         {
           role: 'user',

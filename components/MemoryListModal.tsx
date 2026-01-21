@@ -2,7 +2,8 @@ import { supabase } from '@/services/supabase';
 import { useAuthStore } from '@/stores/authStore';
 import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Modal, Pressable, SectionList, Text, View } from 'react-native';
+import { ActivityIndicator, Modal, Pressable, SectionList, Text, View } from 'react-native';
+import { CustomAlert as Alert } from '@/utils/CustomAlert';
 
 interface MemoryListModalProps {
     visible: boolean;

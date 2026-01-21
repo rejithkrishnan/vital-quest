@@ -1,4 +1,5 @@
-import { View, Text, TouchableOpacity, Alert, StyleSheet, Pressable } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Pressable } from 'react-native';
+import { CustomAlert as Alert } from '@/utils/CustomAlert';
 import React, { useEffect } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import { useGoalsStore } from '@/stores/goalsStore';
@@ -120,7 +121,7 @@ export default function GoalProgressWidget() {
                 </View>
                 <View style={styles.stat}>
                     <Text style={styles.statLabel}>Daily Cal</Text>
-                    <Text style={styles.statValue}>{activeGoal.daily_calorie_target || '--'}</Text>
+                    <Text style={styles.statValue}>{activeGoal.daily_calorie_target ? `${activeGoal.daily_calorie_target} kcal` : '--'}</Text>
                 </View>
                 <View style={[styles.stat, { borderRightWidth: 0 }]}>
                     <Text style={styles.statLabel}>Protein</Text>
@@ -182,11 +183,16 @@ const styles = StyleSheet.create({
     },
     container: {
         backgroundColor: 'white',
-        borderRadius: 16,
+        borderRadius: 24,
         padding: 20,
         marginBottom: 24,
         borderWidth: 1,
         borderColor: '#F3F4F6',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.05,
+        shadowRadius: 12,
+        elevation: 3,
     },
     header: {
         flexDirection: 'row',

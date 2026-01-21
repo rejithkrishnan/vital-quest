@@ -65,7 +65,7 @@ def test_ui_flow_simulation():
     FAKE_GOAL_ID = "test-goal-id-123"
 
     plan_payload = {
-        "mode": "generate_full_plan",
+        "mode": "generate_roadmap",
         "userId": FAKE_USER_ID,
         "context": {
             "goalId": FAKE_GOAL_ID,
@@ -73,10 +73,10 @@ def test_ui_flow_simulation():
             "age": 30,
             "height": 175,
             "weight": wizard_data["currentWeight"],
-            "goalDescription": wizard_data["goal"],
-            "targetValue": wizard_data["targetWeight"],
+            "goal": wizard_data["goal"],
+            "target_weight": wizard_data["targetWeight"],
             "targetUnit": "kg",
-            "durationWeeks": wizard_data["duration"],
+            "duration_weeks": wizard_data["duration"],
             "dietPreference": "Balanced",
             "activityLevel": "Moderate",
         },
@@ -100,13 +100,17 @@ def test_ui_flow_simulation():
             try:
                 plan_json = json.loads(plan_data["text"])
                 print(
-                    f"   Structure Check: {len(plan_json.get('weeks', []))} weeks generated."
+                    f"   Structure Check: {len(plan_json.get('weekly_plans', []))} weeks generated."
                 )
-                if len(plan_json.get("weeks", [])) > 0:
-                    first_week = plan_json["weeks"][0]
-                    print(f"   Sample Week 1 Focus: {first_week.get('focus_area')}")
+                if len(plan_json.get("weekly_plans", [])) > 0:
+                    first_week = plan_json["weekly_plans"][0]
+                    print(f"   Sample Week 1 Focus: {first_week.get('focus')}")
                     print(
-                        f"   Sample Week 1 Calorie Target: {first_week.get('nutrition_plan', {}).get('daily_calories')}"
+                        f"   Sample Week 1 Calorie Target: {first_week.get('calorie_target')}"
+                    )
+                if "day_1_tasks" in plan_json:
+                    print(
+                        f"   Day 1 Tasks: {len(plan_json['day_1_tasks'].get('meals', []))} meals, {len(plan_json['day_1_tasks'].get('workouts', []))} workouts"
                     )
             except json.JSONDecodeError:
                 print("❌ Failed to parse Plan JSON response")

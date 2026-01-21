@@ -6,17 +6,35 @@ import { useGoalsStore } from '@/stores/goalsStore';
 import PlanHeader from '@/components/PlanHeader';
 import { useRouter } from 'expo-router';
 import MealLogModal from '@/components/MealLogModal';
+import DateTimePicker from '@react-native-community/datetimepicker';
+import { Platform } from 'react-native';
 
 export default function PlansScreen() {
     const router = useRouter();
-    const { dailyPlan, tasks, isLoading, fetchDailyPlan, toggleTaskCompletion, activeGoal, fetchWeeklyPlans, weeklyPlans, generateDailyTasks } = useGoalsStore();
+    const { dailyPlan, tasks, isLoading, fetchDailyPlan, toggleTaskCompletion, activeGoal, fetchWeeklyPlans, weeklyPlans, generateDailyTasks, fetchActiveGoal } = useGoalsStore();
     const [filter, setFilter] = useState('All');
     const [selectedDate, setSelectedDate] = useState(new Date());
 
     // Meal Log Modal State
+    // Meal Log Modal State
     const [logModalVisible, setLogModalVisible] = useState(false);
     const [selectedTask, setSelectedTask] = useState<any>(null);
+    const [showDatePicker, setShowDatePicker] = useState(false);
 
+    const onDateChange = (event: any, selected: Date | undefined) => {
+        setShowDatePicker(false);
+        if (selected) {
+            setSelectedDate(selected);
+        }
+    };
+
+    // Initial Load
+    useEffect(() => {
+        console.log("🔄 PlansScreen Mounted, fetching active goal...");
+        fetchActiveGoal();
+    }, []);
+
+    // Date Change
     useEffect(() => {
         fetchDailyPlan(selectedDate);
     }, [selectedDate]);
@@ -33,15 +51,63 @@ export default function PlansScreen() {
     }, [selectedDate, activeGoal]);
 
     // Generate dates for picker
+    // Generate dates for picker
     const dates = React.useMemo(() => {
-        const d = [];
-        for (let i = -2; i < 14; i++) {
-            const date = new Date();
-            date.setDate(date.getDate() + i);
-            d.push(date);
+        const generateFallback = () => {
+            const d = [];
+            const today = new Date();
+            for (let i = -7; i < 21; i++) { // Show 1 week back, 3 weeks forward
+                const date = new Date(today);
+                date.setDate(today.getDate() + i);
+                d.push(date);
+            }
+            return d;
+        };
+
+        if (!activeGoal) {
+            console.log("⚠️ No Active Goal, using fallback dates");
+            return generateFallback();
         }
+
+        console.log("✅ Active Goal Found:", { start: activeGoal.start_date, end: activeGoal.target_date });
+
+        const start = new Date(activeGoal.start_date);
+        let end = activeGoal.target_date ? new Date(activeGoal.target_date) : null;
+
+        // If end date is missing, calculate from duration or default to 12 weeks
+        if (!end || isNaN(end.getTime())) {
+            console.log("⚠️ Target date missing/invalid, calculating from duration...");
+            end = new Date(start);
+            const weeks = activeGoal.duration_weeks || 12;
+            end.setDate(start.getDate() + (weeks * 7));
+        }
+
+        if (isNaN(start.getTime())) {
+            console.log("❌ Invalid Start Date");
+            return generateFallback();
+        }
+
+        if (start > end) {
+            console.log("❌ Start > End");
+            return generateFallback();
+        }
+
+        const d = [];
+        const current = new Date(start);
+        // Cap at 365 days to support full year plans
+        let count = 0;
+        const maxDays = 365;
+
+        while (current <= end && count < maxDays) {
+            d.push(new Date(current));
+            current.setDate(current.getDate() + 1);
+            count++;
+        }
+
+        if (d.length === 0) return generateFallback();
+
         return d;
-    }, []);
+    }, [activeGoal]);
 
     const isToday = (date: Date) => {
         const today = new Date();
@@ -101,6 +167,19 @@ export default function PlansScreen() {
         .filter(t => t.task_type === 'workout' && t.is_completed)
         .reduce((sum, t) => sum + (t.metadata?.calories || 0), 0);
 
+    const proteinConsumed = tasks
+        .filter(t => t.task_type === 'nutrition' && t.is_completed)
+        .reduce((sum, t) => sum + (t.metadata?.protein || 0), 0);
+
+    const carbsConsumed = tasks
+        .filter(t => t.task_type === 'nutrition' && t.is_completed)
+        .reduce((sum, t) => sum + (t.metadata?.carbs || 0), 0);
+
+    const fatConsumed = tasks
+        .filter(t => t.task_type === 'nutrition' && t.is_completed)
+        .reduce((sum, t) => sum + (t.metadata?.fat || 0), 0);
+
+
     return (
         <SafeAreaView className="flex-1 bg-gray-50">
             <View className="pt-2 pb-4 bg-white">
@@ -109,13 +188,16 @@ export default function PlansScreen() {
                         <TouchableOpacity
                             key={index}
                             onPress={() => setSelectedDate(date)}
-                            className={`items-center justify-center mr-3 w-14 h-16 rounded-2xl ${isSelected(date) ? 'bg-blue-600' : 'bg-gray-100'}`}
+                            className={`items-center justify-center mr-3 w-14 h-20 rounded-2xl ${isSelected(date) ? 'bg-blue-600' : 'bg-gray-100'}`}
                         >
                             <Text className={`text-xs ${isSelected(date) ? 'text-blue-100' : 'text-gray-400'}`}>
                                 {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][date.getDay()]}
                             </Text>
                             <Text className={`text-lg font-bold ${isSelected(date) ? 'text-white' : 'text-gray-900'}`}>
                                 {date.getDate()}
+                            </Text>
+                            <Text className={`text-[10px] font-medium ${isSelected(date) ? 'text-blue-100' : 'text-gray-400'}`}>
+                                {['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][date.getMonth()]}
                             </Text>
                         </TouchableOpacity>
                     ))}
@@ -128,7 +210,7 @@ export default function PlansScreen() {
             >
                 {/* Week Focus Card */}
                 {activeWeek && (
-                    <View className="mb-6 bg-indigo-50 p-4 rounded-2xl border border-indigo-100">
+                    <View className="mb-6 bg-indigo-50 p-5 rounded-[28px] border border-indigo-100 shadow-sm elevation-2">
                         <View className="flex-row justify-between items-start mb-2">
                             <Text className="text-indigo-600 font-bold text-xs uppercase tracking-wider">Week {activeWeek.week_number} Focus</Text>
                             <View className="bg-white px-2 py-1 rounded-lg">
@@ -147,10 +229,11 @@ export default function PlansScreen() {
                         burned: burned
                     }}
                     macros={{
-                        protein: { current: 0, target: dailyPlan?.protein_target || activeGoal.protein_target || 150 },
-                        carbs: { current: 0, target: dailyPlan?.carbs_target || activeGoal.carbs_target || 200 },
-                        fat: { current: 0, target: dailyPlan?.fat_target || activeGoal.fat_target || 60 }
+                        protein: { current: proteinConsumed, target: dailyPlan?.protein_target || activeGoal.protein_target || 150 },
+                        carbs: { current: carbsConsumed, target: dailyPlan?.carbs_target || activeGoal.carbs_target || 200 },
+                        fat: { current: fatConsumed, target: dailyPlan?.fat_target || activeGoal.fat_target || 60 }
                     }}
+                    onPressCalendar={() => setShowDatePicker(true)}
                 />
 
                 {/* Filters */}
@@ -184,36 +267,65 @@ export default function PlansScreen() {
                         </View>
                     ) : (
                         filteredTasks.map((task) => (
-                            <View key={task.id} className="bg-white p-4 rounded-2xl mb-3 shadow-sm border border-gray-100 flex-row items-center">
+                            <View key={task.id} className="bg-white rounded-[24px] mb-3 shadow-sm elevation-1 border border-gray-100 overflow-hidden flex-row items-center">
                                 <TouchableOpacity
                                     onPress={() => toggleTaskCompletion(task.id, !task.is_completed)}
-                                    className={`w-6 h-6 rounded-full border-2 mr-4 items-center justify-center ${task.is_completed ? 'bg-green-500 border-green-500' : 'border-gray-300'}`}
+                                    className="p-4 flex-row items-center flex-1"
                                 >
-                                    {task.is_completed && <Ionicons name="checkmark" size={16} color="white" />}
-                                </TouchableOpacity>
+                                    <View
+                                        className={`w-6 h-6 rounded-full border-2 mr-4 items-center justify-center ${task.is_completed ? 'bg-green-500 border-green-500' : 'border-gray-300'}`}
+                                    >
+                                        {task.is_completed && <Ionicons name="checkmark" size={16} color="white" />}
+                                    </View>
 
-                                <View className="flex-1">
-                                    <View className="flex-row justify-between items-center mb-1">
-                                        <Text className={`font-semibold text-gray-900 ${task.is_completed ? 'line-through text-gray-400' : ''}`}>
+                                    <View className="flex-1 ml-2">
+                                        {/* Header: Time and Type */}
+                                        <View className="flex-row items-center mb-1">
+                                            <Text className="text-base font-bold text-blue-600 mr-2">
+                                                {task.time_slot || 'Anytime'}
+                                            </Text>
+                                            <Text className="text-base font-bold text-gray-900 capitalize">
+                                                {task.task_type === 'nutrition' ? (task.meal_type || 'Meal') : (task.task_type === 'workout' ? 'Workout' : 'Mindfulness')}
+                                            </Text>
+                                        </View>
+
+                                        {/* Description */}
+                                        <Text className={`text-sm text-gray-600 mb-1 ${task.is_completed ? 'line-through text-gray-400' : ''}`}>
                                             {task.description}
                                         </Text>
-                                        <Text className="text-xs text-gray-400">{task.time_slot}</Text>
-                                    </View>
-                                    <View className="flex-row items-center">
-                                        <Text className="text-xs text-gray-500 mr-2">
-                                            {task.task_type === 'nutrition' ? '🍽️ Meal' : (task.task_type === 'workout' ? '💪 Workout' : '🧘 Mindfulness')}
-                                        </Text>
-                                        {task.metadata?.calories && (
-                                            <Text className="text-xs text-blue-500 font-medium">{task.metadata.calories} kcal</Text>
+
+                                        {/* Metadata (Calories/Duration) */}
+                                        {(task.metadata?.calories || task.metadata?.duration) && (
+                                            <View className="flex-row items-center mt-1">
+                                                <View className="bg-purple-50 px-2 py-0.5 rounded-md mr-2">
+                                                    <Text className="text-xs text-purple-600 font-bold">+{task.xp_reward || 10} XP</Text>
+                                                </View>
+                                                {task.metadata?.calories && (
+                                                    <View className="bg-orange-50 px-2 py-0.5 rounded-md mr-2">
+                                                        <Text className="text-xs text-orange-600 font-medium">
+                                                            {task.metadata.calories} kcal
+                                                        </Text>
+                                                    </View>
+                                                )}
+                                                {task.metadata?.duration && (
+                                                    <View className="bg-blue-50 px-2 py-0.5 rounded-md">
+                                                        <Text className="text-xs text-blue-600 font-medium">
+                                                            {task.metadata.duration} min
+                                                        </Text>
+                                                    </View>
+                                                )}
+                                            </View>
                                         )}
                                     </View>
-                                </View>
+                                </TouchableOpacity>
 
-                                {/* Log Button for Meals */}
+                                {/* Log Button for Meals - Positioned absolutely or flexed to avoid card-level click */}
                                 {!task.is_completed && task.task_type === 'nutrition' && (
-                                    <TouchableOpacity onPress={() => handleLogTask(task)} className="bg-gray-50 p-2 rounded-xl">
-                                        <Ionicons name="camera-outline" size={20} color="#374151" />
-                                    </TouchableOpacity>
+                                    <View className="pr-4 justify-center">
+                                        <TouchableOpacity onPress={() => handleLogTask(task)} className="bg-gray-50 p-2 rounded-xl">
+                                            <Ionicons name="camera-outline" size={24} color="#374151" />
+                                        </TouchableOpacity>
+                                    </View>
                                 )}
                             </View>
                         ))
@@ -229,6 +341,15 @@ export default function PlansScreen() {
                 }}
                 task={selectedTask}
             />
+
+            {showDatePicker && (
+                <DateTimePicker
+                    value={selectedDate}
+                    mode="date"
+                    display="default"
+                    onChange={onDateChange}
+                />
+            )}
         </SafeAreaView>
     );
 }

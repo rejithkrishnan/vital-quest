@@ -5,6 +5,8 @@ import { Link, router } from 'expo-router';
 import { useState } from 'react';
 import { supabase } from '@/services/supabase';
 
+import { CustomAlert as Alert } from '@/utils/CustomAlert';
+
 export default function SignupScreen() {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -22,10 +24,10 @@ export default function SignupScreen() {
 
             if (error) throw error;
 
-            alert('Check your email for the confirmation link!');
+            Alert.alert("Success", "Check your email for the confirmation link!");
             router.back();
         } catch (error: any) {
-            alert(error.message);
+            Alert.alert("Signup Failed", error.message);
         } finally {
             setLoading(false);
         }

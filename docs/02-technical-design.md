@@ -25,6 +25,7 @@ Here is the **Technical Design Document (TDD)** for your AI Personal Health Coac
 | **Plan Tasks** | 🔶 Partial | Schema exists, interactive edit pending |
 | **Sensors (Gait/HRV)** | ⏳ Pending | Not started |
 | **Advanced Gamification** | ⏳ Pending | Streaks, Quests, Badges |
+| **Immersive Motion** | ⏳ Pending | Lottie Icons, Moti Transitions |
 
 ---
 
@@ -48,7 +49,7 @@ The system follows a **Hybrid Client-Server Architecture** enhanced by the **Mod
 * **State Management:** **Zustand** (Global Store) + **TanStack Query** (Server State/Caching).
 * **Media:** **expo-image-picker** (Camera & Gallery access).
 * **Navigation:** Expo Router (File-based routing).
-* **Animations:** React Native Reanimated + Lottie.
+* **Animations:** React Native Reanimated + Lottie + **Moti**.
 
 ### **2.2. Navigation Structure (5 Tabs)**
 
@@ -487,6 +488,20 @@ The app will be built in **8 incremental phases**, starting with the foundation 
 
 ---
 
+### **Phase 9: Immersive Motion & Polish** (Days 41-45)
+**Goal:** Create a fluid, living interface.
+
+| Task | Deliverable |
+|------|-------------|
+| Library Setup | Install `moti`, `lottie-react-native` |
+| Lively Tabs | Lottie animations for tab bar icons |
+| Page Transitions | Smooth entry/exit animations for screens |
+| Micro-interactions | Button press effects, skeleton loaders |
+
+**Exit Criteria:** App feels "alive" with constant subtle motion.
+
+---
+
 ### **Phase Summary**
 
 | Phase | Focus | Complexity | Dependencies |
@@ -499,3 +514,4 @@ The app will be built in **8 incremental phases**, starting with the foundation 
 | 6 | Sensors (Gait/HRV) | ⭐⭐⭐⭐ | Phase 5 |
 | 7 | Advanced Gamification | ⭐⭐⭐ | Phase 5, 6 |
 | 8 | Polish + Launch | ⭐⭐ | All phases |
+| 9 | Immersive Motion | ⭐⭐ | Phase 8 |

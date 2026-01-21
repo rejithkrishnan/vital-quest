@@ -24,11 +24,12 @@
 | **Phase 2: Auth & Profile** | ✅ Complete | 100% |
 | **Phase 3: Basic Gamification** | ✅ Complete | 100% |
 | **Phase 4: AI Chat** | ✅ Complete | 100% |
-| **Phase 4b: Enhanced AI** | ⏳ Pending | 0% |
-| **Phase 5: Plans & Logging** | 🔶 Partial | 60% (Generation Working) |
+| **Phase 4b: Enhanced AI** | ✅ Complete | 100% (Vision/RAG active) |
+| **Phase 5: Plans & Logging** | ✅ Complete | 100% (Sync & Macros fixed) |
 | **Phase 6: Sensors** | ⏳ Pending | 0% |
 | **Phase 7: Advanced Gamification** | ⏳ Pending | 0% |
-| **Phase 8: Polish & Launch** | ⏳ Pending | 0% |
+| **Phase 8: Polish & Launch** | 🔶 Partial | 20% (UI Aesthetic Polish) |
+| **Phase 9: Immersive Motion** | ⏳ Pending | 0% |
 
 ---
 
@@ -443,6 +444,49 @@ Production-ready app submitted to stores.
 - [ ] Builds succeed for iOS and Android
 - [ ] Apps submitted to TestFlight and Play Console
 - [ ] No critical bugs
+
+---
+
+## Phase 9: Immersive Motion & Polish (Days 41-45)
+
+### Goal
+Create a fluid, lively interface with animated icons, smooth transitions, and micro-interactions.
+
+### Tasks
+
+| # | Task | Tech | Est. Time |
+|---|------|------|-----------|
+| 9.1 | Install Animation Libs | `lottie-react-native`, `moti` | 15 min |
+| 9.2 | Tab Bar Animations | Replace static icons with Lottie JSONs | 2 hr |
+| 9.3 | Screen Entry Animations | Reanimated Layout Transitions (Fade/Slide) | 2 hr |
+| 9.4 | Micro-interactions | Scale/Bounce on button press (Moti) | 1.5 hr |
+| 9.5 | Loading Skeletons | Replace spinners availability Moti skeletons | 2 hr |
+| 9.6 | Success/Level-up FX | Confetti Lottie for achievements | 1 hr |
+
+### Lottie Implementation
+
+```typescript
+// AnimatedIcon.tsx
+import LottieView from 'lottie-react-native';
+
+export const AnimatedIcon = ({ focused, name }: Props) => {
+  const ref = useRef<LottieView>(null);
+  
+  useEffect(() => {
+    if (focused) ref.current?.play();
+    else ref.current?.reset();
+  }, [focused]);
+
+  return <LottieView source={assets[name]} loop={false} ref={ref} />;
+};
+```
+
+### Exit Criteria
+- [ ] Tab icons animate on selection
+- [ ] Screens slide/fade in smoothly
+- [ ] Buttons feel tactile (scale on press)
+- [ ] Loading states use shimmering skeletons
+- [ ] "Level Up" triggers a celebration animation
 
 ---
 

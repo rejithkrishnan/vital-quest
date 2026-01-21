@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { View, Text, Modal, TouchableOpacity, TextInput, Image, ActivityIndicator, ScrollView, Alert } from 'react-native';
+import { View, Text, Modal, TouchableOpacity, TextInput, Image, ActivityIndicator, ScrollView } from 'react-native';
+import { CustomAlert as Alert } from '@/utils/CustomAlert';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { useGoalsStore, PlanTask } from '@/stores/goalsStore';

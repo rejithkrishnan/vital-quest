@@ -120,14 +120,17 @@ export const useGamificationStore = create<GamificationState>((set, get) => ({
             const today = new Date().toISOString().split('T')[0];
 
             // 1. Check if plan exists for today
-            const { data: planData, error: planError } = await supabase
+            const { data: rawData, error: planError } = await supabase
                 .from('daily_plans')
                 .select('id, date, summary')
                 .eq('user_id', user.id)
                 .eq('date', today)
-                .single();
+                .order('created_at', { ascending: false })
+                .limit(1);
 
-            if (planError && planError.code !== 'PGRST116') throw planError; // Ignore "not found"
+            const planData = (rawData && rawData.length > 0) ? rawData[0] : null;
+
+            if (planError) throw planError;
 
             if (planData) {
                 // 2. Fetch tasks for the plan
@@ -250,9 +253,21 @@ export const useGamificationStore = create<GamificationState>((set, get) => ({
                     table: 'plan_tasks'
                 },
                 (payload) => {
-                    console.log('Realtime change:', payload);
-                    // Simple strategy: Refetch the whole plan to ensure consistency
+                    console.log('Realtime plan_tasks change:', payload.eventType);
                     get().fetchTodayPlan();
+                }
+            )
+            .on(
+                'postgres_changes',
+                {
+                    event: '*',
+                    schema: 'public',
+                    table: 'profiles',
+                    filter: `id=eq.${user.id}`
+                },
+                (payload) => {
+                    console.log('Realtime profile change:', payload.eventType);
+                    get().fetchStats();
                 }
             )
             .subscribe();

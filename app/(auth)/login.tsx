@@ -6,6 +6,8 @@ import { useState } from 'react';
 import { useAuthStore } from '@/stores/authStore';
 import { supabase } from '@/services/supabase';
 
+import { CustomAlert as Alert } from '@/utils/CustomAlert';
+
 export default function LoginScreen() {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -39,7 +41,7 @@ export default function LoginScreen() {
                 router.replace('/(auth)/onboarding'); // Redirect to onboarding
             }
         } catch (error: any) {
-            alert(error.message);
+            Alert.alert("Login Failed", error.message);
         } finally {
             setLoading(false);
         }

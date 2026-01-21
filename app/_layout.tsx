@@ -1,6 +1,7 @@
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
+import { View } from 'react-native';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
 import 'react-native-reanimated';
@@ -51,14 +52,23 @@ export default function RootLayout() {
   return <RootLayoutNav />;
 }
 
+import CustomAlertModal from '@/components/CustomAlertModal';
+
+// ... (existing imports)
+
 function RootLayoutNav() {
   useProtectedRoute();
 
   return (
-    <Stack>
-      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-      <Stack.Screen name="(auth)" options={{ headerShown: false }} />
-      <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
-    </Stack>
+    <View className="flex-1 bg-gray-100 dark:bg-gray-900 sm:justify-center sm:items-center sm:py-8">
+      <View className="flex-1 w-full sm:w-[70%] sm:max-w-[1000px] sm:h-[90vh] sm:rounded-3xl sm:overflow-hidden sm:shadow-2xl bg-white dark:bg-black border-gray-200 dark:border-gray-800 sm:border">
+        <Stack>
+          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+          <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+          <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
+        </Stack>
+        <CustomAlertModal />
+      </View>
+    </View>
   );
 }

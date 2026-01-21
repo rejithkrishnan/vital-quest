@@ -3,21 +3,52 @@ import GoalProgressWidget from '@/components/GoalProgressWidget';
 import GamificationWidget from '@/components/GamificationWidget';
 import { useAuthStore } from '@/stores/authStore';
 import { useGamificationStore } from '@/stores/gamificationStore';
-import { useEffect } from 'react';
-import { ScrollView, Text, View } from 'react-native';
+import { useGoalsStore } from '@/stores/goalsStore';
+import React, { useEffect, useState } from 'react';
+import { ScrollView, Text, View, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function HomeScreen() {
   const { user } = useAuthStore();
   const { fetchStats } = useGamificationStore();
+  const { fetchActiveGoal, fetchDailyPlan } = useGoalsStore();
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
-    fetchStats();
+    loadData();
+
+    // Subscribe to realtime updates
+    const unsubscribeGoals = useGoalsStore.getState().subscribeToRealtime();
+    const unsubscribeGamification = useGamificationStore.getState().subscribeToRealtime();
+
+    return () => {
+      unsubscribeGoals();
+      unsubscribeGamification();
+    };
   }, []);
+
+  const loadData = async () => {
+    await Promise.all([
+      fetchStats(),
+      fetchActiveGoal(),
+      fetchDailyPlan(new Date())
+    ]);
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadData();
+    setRefreshing(false);
+  };
 
   return (
     <SafeAreaView className="flex-1 bg-gray-50">
-      <ScrollView contentContainerStyle={{ padding: 24 }}>
+      <ScrollView
+        contentContainerStyle={{ padding: 24 }}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+      >
         {/* Header */}
         <View className="mb-6">
           <Text className="text-gray-500 font-medium">Welcome back,</Text>

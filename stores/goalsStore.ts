@@ -1,5 +1,9 @@
 import { create } from 'zustand';
 import { supabase } from '@/services/supabase';
+import { decode } from 'base64-arraybuffer'; // Import decode
+import { useAuthStore } from './authStore';
+import { useGamificationStore } from './gamificationStore';
+import { CustomAlert as Alert } from '@/utils/CustomAlert';
 
 // DB Types
 export interface HealthGoal {
@@ -75,6 +79,8 @@ export interface GoalsState {
     analyzeMeal: (imageOrText: string | { uri: string, base64?: string }, context: any) => Promise<any>;
     logMeal: (taskId: string, logData: any, photoUrl?: string) => Promise<void>;
     deleteGoal: (goalId: string) => Promise<void>;
+    resetUserData: () => Promise<void>;
+    subscribeToRealtime: () => () => void;
 }
 
 export const useGoalsStore = create<GoalsState>((set, get) => ({
@@ -98,14 +104,17 @@ export const useGoalsStore = create<GoalsState>((set, get) => ({
                 .eq('user_id', user.id)
                 .eq('status', 'active')
                 .order('created_at', { ascending: false })
-                .limit(1)
-                .single();
+                .limit(1);
 
-            if (error && error.code !== 'PGRST116') throw error; // PGRST116 is "no rows found"
+            if (error) throw error;
 
-            if (data) {
-                set({ activeGoal: data });
-                await get().fetchWeeklyPlans(data.id);
+            const activeGoal = data && data.length > 0 ? data[0] : null;
+
+            if (activeGoal) {
+                set({ activeGoal });
+                await get().fetchWeeklyPlans(activeGoal.id);
+            } else {
+                set({ activeGoal: null });
             }
         } catch (e: any) {
             console.error('Error fetching goal:', e);
@@ -168,6 +177,15 @@ export const useGoalsStore = create<GoalsState>((set, get) => ({
 
     generateFullPlan: async (goalId, context) => {
         set({ isLoading: true, error: null });
+
+        // Simple UUID regex check
+        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        if (!uuidRegex.test(goalId)) {
+            console.error("Invalid UUID passed to generateFullPlan:", goalId);
+            set({ isLoading: false, error: "Invalid Goal ID" });
+            return;
+        }
+
         try {
             const { data: { session } } = await supabase.auth.getSession();
             if (!session?.user) throw new Error('No user found');
@@ -194,6 +212,29 @@ export const useGoalsStore = create<GoalsState>((set, get) => ({
 
             console.log("Roadmap Generated:", planJson);
 
+            // 1b. Update Goal with Targets
+            const { error: updateGoalError } = await supabase
+                .from('health_goals')
+                .update({
+                    daily_calorie_target: planJson.daily_calorie_target,
+                    protein_target: planJson.macros?.protein,
+                    carbs_target: planJson.macros?.carbs,
+                    fat_target: planJson.macros?.fat
+                })
+                .eq('id', goalId);
+
+            if (updateGoalError) {
+                console.error("Failed to update goal with targets:", updateGoalError);
+            } else {
+                // Refresh local state
+                const { data: updatedGoal } = await supabase
+                    .from('health_goals')
+                    .select('*')
+                    .eq('id', goalId)
+                    .single();
+                if (updatedGoal) set({ activeGoal: updatedGoal });
+            }
+
             // 2. Create Weekly Plans
             const startDate = new Date();
             const weeklyPlansData = planJson.weekly_plans.map((wp: any, index: number) => {
@@ -217,9 +258,10 @@ export const useGoalsStore = create<GoalsState>((set, get) => ({
                 .select();
 
             if (weekError) throw weekError;
+            console.log("✅ WEEKLY PLANS CREATED:", createdWeeks?.length, "weeks");
 
             // 3. Create Daily Plans (Skeleton for entire duration)
-            const dailyPlansData = [];
+            const dailyPlansData: any[] = [];
             const durationDays = context.durationWeeks * 7;
 
             // Helper to find relevant weekly plan ID
@@ -245,15 +287,49 @@ export const useGoalsStore = create<GoalsState>((set, get) => ({
                 });
             }
 
+            // 3b. CLEANUP: Delete any existing daily_plans for these dates (unique constraint)
+            const dateStrings = dailyPlansData.map(d => d.date);
+
+            const { error: deleteError } = await supabase
+                .from('daily_plans')
+                .delete()
+                .eq('user_id', user.id)
+                .in('date', dateStrings);
+
+            if (deleteError) {
+                console.error("Delete failed:", deleteError);
+            }
+
+            // 3c. Insert the new daily plans
             const { data: createdDays, error: dayError } = await supabase
                 .from('daily_plans')
                 .insert(dailyPlansData)
                 .select();
 
+            console.log("📊 INSERT RESULT:", {
+                success: !dayError,
+                createdCount: createdDays?.length || 0,
+                errorCode: dayError?.code || null,
+                errorMessage: dayError?.message || null,
+                errorDetails: dayError?.details || null,
+                errorHint: dayError?.hint || null,
+                firstCreated: createdDays?.[0]?.id || 'none'
+            });
+
             if (dayError) throw dayError;
 
+            if (!createdDays || createdDays.length === 0) {
+                console.error("❌ CRITICAL: No daily plans created despite no error!");
+                throw new Error("Failed to create daily plans - no data returned");
+            }
+
             // 4. Create Day 1 Tasks (Immediate)
-            const day1PlanId = createdDays.find((d: any) => d.date === startDate.toISOString().split('T')[0])?.id;
+            const startDateStr = startDate.toISOString().split('T')[0];
+            console.log("🔍 Looking for Day 1 plan with date:", startDateStr);
+            console.log("📋 Available dates in createdDays:", createdDays.slice(0, 5).map((d: any) => d.date));
+
+            const day1PlanId = createdDays.find((d: any) => d.date === startDateStr)?.id;
+            console.log("🎯 Day 1 Plan ID:", day1PlanId || "NOT FOUND!");
 
             if (day1PlanId && planJson.day_1_tasks) {
                 const day1Tasks: any[] = [];
@@ -292,15 +368,35 @@ export const useGoalsStore = create<GoalsState>((set, get) => ({
                     });
                 });
 
+                console.log("Preparing to insert tasks for Plan ID:", day1PlanId);
+                console.log("Tasks to insert:", day1Tasks.length);
+
                 if (day1Tasks.length > 0) {
-                    const { error: taskError } = await supabase.from('plan_tasks').insert(day1Tasks);
-                    if (taskError) console.error("Error creating Day 1 tasks:", taskError);
+                    const { data: insertedTasks, error: taskError } = await supabase
+                        .from('plan_tasks')
+                        .insert(day1Tasks)
+                        .select();
+
+                    if (taskError) {
+                        console.error("CRITICAL ERROR creating Day 1 tasks:", taskError);
+                    } else {
+                        console.log("SUCCESS: Inserted tasks:", insertedTasks?.length);
+                    }
+                } else {
+                    console.warn("WARNING: day1Tasks array is empty despite check.");
                 }
+            } else {
+                console.warn("⚠️ Could not create Day 1 tasks:", {
+                    day1PlanId: day1PlanId || 'missing',
+                    hasDay1Tasks: !!planJson.day_1_tasks
+                });
             }
 
+            console.log("🎉 PLAN GENERATION COMPLETE - Refreshing local state...");
             // Refresh local state
             await get().fetchWeeklyPlans(goalId);
             await get().fetchDailyPlan(startDate);
+            console.log("✅ Local state refreshed successfully");
 
         } catch (e: any) {
             set({ error: e.message });
@@ -317,8 +413,8 @@ export const useGoalsStore = create<GoalsState>((set, get) => ({
 
         let targetPlan = dailyPlan;
         if (dailyPlan?.date !== dateStr) {
-            const { data } = await supabase.from('daily_plans').select('*').eq('date', dateStr).single();
-            targetPlan = data;
+            const { data: plans } = await supabase.from('daily_plans').select('*').eq('date', dateStr).order('created_at', { ascending: false }).limit(1);
+            targetPlan = plans && plans.length > 0 ? plans[0] : null;
         }
 
         if (!targetPlan || !activeGoal) return;
@@ -401,21 +497,32 @@ export const useGoalsStore = create<GoalsState>((set, get) => ({
         set({ isLoading: true, error: null });
         try {
             const dateStr = date.toISOString().split('T')[0];
+            console.log("📅 fetchDailyPlan called for date:", dateStr);
+
             const { data: { session } } = await supabase.auth.getSession();
             if (!session?.user) return;
             const user = session.user;
 
             // Fetch Daily Plan
-            const { data: planData, error: planError } = await supabase
+            const { data: rawData, error: planError } = await supabase
                 .from('daily_plans')
                 .select('*')
                 .eq('user_id', user.id)
                 .eq('date', dateStr)
-                .single();
+                .order('created_at', { ascending: false })
+                .limit(1);
 
-            if (planError && planError.code !== 'PGRST116') throw planError;
+            console.log("📊 fetchDailyPlan query result:", {
+                dateSearched: dateStr,
+                rawDataCount: rawData?.length || 0,
+                error: planError?.message || null
+            });
+
+            if (planError) throw planError;
+            const planData = rawData && rawData.length > 0 ? rawData[0] : null;
 
             if (planData) {
+                console.log("✅ fetchDailyPlan: Found Plan ID:", planData.id);
                 set({ dailyPlan: planData });
 
                 // Fetch Tasks
@@ -441,8 +548,19 @@ export const useGoalsStore = create<GoalsState>((set, get) => ({
     toggleTaskCompletion: async (taskId, isCompleted) => {
         // Optimistic update
         const { tasks } = get();
+        const taskIndex = tasks.findIndex(t => t.id === taskId);
+        if (taskIndex === -1) return;
+
+        const task = tasks[taskIndex];
         const updatedTasks = tasks.map(t => t.id === taskId ? { ...t, is_completed: isCompleted } : t);
         set({ tasks: updatedTasks });
+
+        // Calculate XP Delta
+        const xpAmount = task.xp_reward || 10;
+        const xpDelta = isCompleted ? xpAmount : -xpAmount;
+
+        // Call Gamification Store
+        useGamificationStore.getState().addXp(xpDelta);
 
         try {
             const { error } = await supabase
@@ -455,6 +573,8 @@ export const useGoalsStore = create<GoalsState>((set, get) => ({
             console.error("Error toggling task:", e);
             // Revert on error
             set({ tasks });
+            // Revert XP (Optional but good)
+            useGamificationStore.getState().addXp(-xpDelta);
         }
     },
 
@@ -517,35 +637,89 @@ export const useGoalsStore = create<GoalsState>((set, get) => ({
             // If it's a local URI, we must upload it.
 
             let imageUrl = '';
-            if (typeof imageOrText !== 'string' && imageOrText.uri) {
-                // Upload logic
-                const fileExt = imageOrText.uri.split('.').pop();
-                const fileName = `${user?.id}/${Date.now()}.${fileExt}`;
-                const { data: uploadData, error: uploadError } = await supabase.storage
-                    .from('meal-photos')
-                    .upload(fileName, { uri: imageOrText.uri, type: `image/${fileExt}`, name: fileName } as any, {
-                        contentType: `image/${fileExt}`
-                    });
 
-                if (uploadError) throw uploadError;
+            // Check if we have an image
+            const imageUri = typeof imageOrText !== 'string' ? imageOrText.uri : null;
 
-                // Get Public URL
-                const { data: { publicUrl } } = supabase.storage
-                    .from('meal-photos')
-                    .getPublicUrl(fileName);
+            if (imageUri) {
+                try {
+                    console.log("Starting Image Upload...", imageUri);
+                    const fileExt = imageUri.split('.').pop() || 'jpg';
+                    const fileName = `${user?.id}/${Date.now()}.${fileExt}`;
 
-                imageUrl = publicUrl;
+                    const formData = new FormData();
+                    formData.append('file', {
+                        uri: imageUri,
+                        type: `image/${fileExt}`,
+                        name: fileName,
+                    } as any);
 
-                // Add to attachments
-                body.attachments = [{ type: `image/${fileExt}`, publicUrl: imageUrl }];
+                    const { data: uploadData, error: uploadError } = await supabase.storage
+                        .from('meal-photos')
+                        .upload(fileName, formData, {
+                            upsert: true
+                        });
+
+                    if (uploadError) {
+                        // Fallback: Try base64 upload if FormData fails (common in Expo)
+                        if (typeof imageOrText !== 'string' && imageOrText.base64) {
+                            const { error: b64Error } = await supabase.storage
+                                .from('meal-photos')
+                                .upload(fileName, decode(imageOrText.base64), {
+                                    contentType: `image/${fileExt}`
+                                });
+                            if (b64Error) throw b64Error;
+                        } else {
+                            throw uploadError;
+                        }
+                    }
+
+                    // Get Public URL
+                    const { data: { publicUrl } } = supabase.storage
+                        .from('meal-photos')
+                        .getPublicUrl(fileName);
+
+                    imageUrl = publicUrl;
+                    console.log("Image Uploaded, URL:", imageUrl);
+
+                    // Add to attachments
+                    body.attachments = [{ type: `image/${fileExt}`, publicUrl: imageUrl }];
+
+                } catch (imgError) {
+                    console.error("Image upload failed, proceeding with text only/dummy", imgError);
+                    // If image upload fails, better to fail the whole analysis or warn
+                    throw new Error("Failed to upload image for analysis");
+                }
             }
+
+            // ENSURE MESSAGE IS SET (Edge Function Crash Fix)
+            if (!body.message) {
+                // If it was just an image, give a default prompt
+                body.message = "Analyze this food image.";
+            }
+
+            // Debug Log
+            console.log("Invoking chat-agent analyze_meal with:", {
+                mode: body.mode,
+                hasMessage: !!body.message,
+                hasAttachments: !!body.attachments
+            });
 
             const { data, error } = await supabase.functions.invoke('chat-agent', {
                 body: body
             });
 
             if (error) throw error;
-            const result = JSON.parse(data.text);
+            if (!data.text) throw new Error("AI returned empty response");
+
+            let result;
+            try {
+                result = typeof data.text === 'string' ? JSON.parse(data.text) : data.text;
+            } catch (jsonErr) {
+                console.error("Failed to parse AI response:", data.text);
+                throw new Error("AI returned invalid data format");
+            }
+
             // Attach the uploaded URL to the result so we can use it later
             if (imageUrl) result.photo_url = imageUrl;
 
@@ -562,6 +736,11 @@ export const useGoalsStore = create<GoalsState>((set, get) => ({
         try {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) return;
+
+            // Check if task completed
+            const { tasks } = get();
+            const task = tasks.find(t => t.id === taskId);
+            const wasCompleted = task ? task.is_completed : false;
 
             const today = new Date().toISOString().split('T')[0];
 
@@ -595,6 +774,17 @@ export const useGoalsStore = create<GoalsState>((set, get) => ({
                 .eq('id', taskId);
 
             if (taskError) throw taskError;
+
+            // Award XP if not already completed
+            if (!wasCompleted && task) {
+                const xpAmount = task.xp_reward || 20;
+                useGamificationStore.getState().addXp(xpAmount);
+
+                // Update local state
+                set({
+                    tasks: get().tasks.map(t => t.id === taskId ? { ...t, is_completed: true } : t)
+                });
+            }
 
             // 3. Update daily_plans counters
             // We fetch the current plan to be safe or increment atomically
@@ -633,5 +823,90 @@ export const useGoalsStore = create<GoalsState>((set, get) => ({
             console.error("Error deleting goal:", e);
             throw e;
         }
+    },
+
+    resetUserData: async () => {
+        const user = useAuthStore.getState().user;
+        if (!user) return;
+        set({ isLoading: true });
+
+        try {
+            // Delete data in order (child tables first)
+
+            // 1. Delete Daily Plans (cascades tasks usually)
+            await supabase.from('daily_plans').delete().eq('user_id', user.id);
+
+            // 2. Delete Weekly Plans (need to find IDs linked to goals, or delete goals first)
+
+            // 3. Delete Goals (Main parent)
+            await supabase.from('health_goals').delete().eq('user_id', user.id);
+
+            // 4. Delete Chat Sessions
+            await supabase.from('chat_sessions').delete().eq('user_id', user.id);
+
+            // 5. Delete Memories
+            await supabase.from('user_memory').delete().eq('user_id', user.id);
+
+            // Clear local state
+            set({
+                activeGoal: null,
+                weeklyPlans: [],
+                dailyPlan: null,
+                tasks: [],
+                isLoading: false
+            });
+
+            Alert.alert('Success', 'All account data has been reset.');
+        } catch (error: any) {
+            console.error('Reset failed:', error);
+            Alert.alert('Reset Failed', error.message);
+            set({ isLoading: false });
+        }
+    },
+
+    subscribeToRealtime: () => {
+        const user = useAuthStore.getState().user;
+        if (!user) return () => { };
+
+        console.log("Subscribing to goals realtime updates for user:", user.id);
+
+        const channel = supabase
+            .channel('goals-db-changes')
+            .on(
+                'postgres_changes',
+                {
+                    event: '*',
+                    schema: 'public',
+                    table: 'health_goals',
+                    filter: `user_id=eq.${user.id}`
+                },
+                (payload) => {
+                    console.log('Goal change detected:', payload.eventType);
+                    get().fetchActiveGoal();
+                }
+            )
+            .on(
+                'postgres_changes',
+                {
+                    event: '*',
+                    schema: 'public',
+                    table: 'daily_plans',
+                    filter: `user_id=eq.${user.id}`
+                },
+                (payload) => {
+                    console.log('Daily plan change detected:', payload.eventType);
+                    const currentDailyPlan = get().dailyPlan;
+                    if (currentDailyPlan) {
+                        get().fetchDailyPlan(new Date(currentDailyPlan.date));
+                    } else {
+                        get().fetchDailyPlan(new Date());
+                    }
+                }
+            )
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
     }
 }));

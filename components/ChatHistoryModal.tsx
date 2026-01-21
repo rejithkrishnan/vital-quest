@@ -2,7 +2,8 @@ import { supabase } from '@/services/supabase';
 import { useAuthStore } from '@/stores/authStore';
 import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useState } from 'react';
-import { FlatList, Modal, Pressable, Text, View, ActivityIndicator, Alert } from 'react-native';
+import { FlatList, Modal, Pressable, Text, View, ActivityIndicator } from 'react-native';
+import { CustomAlert as Alert } from '@/utils/CustomAlert';
 
 interface ChatSession {
     id: string;

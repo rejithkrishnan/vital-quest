@@ -5,9 +5,11 @@ import { useAuthStore } from '@/stores/authStore';
 import { useGamificationStore } from '@/stores/gamificationStore';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
-import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, FlatList, Image, KeyboardAvoidingView, Modal, Platform, Pressable, Text, TextInput, View, Alert, TouchableOpacity } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, FlatList, Image, KeyboardAvoidingView, Modal, Platform, Pressable, Text, TextInput, View, TouchableOpacity } from 'react-native';
+import { CustomAlert as Alert } from '@/utils/CustomAlert';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 
 import { useGoalsStore } from '@/stores/goalsStore';
 import { useRouter } from 'expo-router';
@@ -46,16 +48,21 @@ export default function ChatScreen() {
   const { xp, level, streak } = useGamificationStore();
   const { user } = useAuthStore();
 
-  // Load most recent session on mount
-  useEffect(() => {
-    if (!user) return;
+  // Handle action param (e.g., from Plans tab "Create Plan" button)
+  useFocusEffect(
+    useCallback(() => {
+      if (!user) return;
 
-    if (action === 'create_plan') {
-      handleNewChat(true); // Start fresh with intake
-    } else {
-      loadMostRecentSession();
-    }
-  }, [user, action]);
+      if (action === 'create_plan') {
+        handleNewChat(true); // Start fresh intake session
+        // Clear the param to prevent re-triggering on swipe back
+        router.setParams({ action: undefined });
+      } else if (!currentSessionId && !isGoalIntake) {
+        // Only load recent session if no session and not in intake
+        loadMostRecentSession();
+      }
+    }, [action, user])
+  );
 
   const loadMostRecentSession = async () => {
     if (!user) return;
@@ -339,6 +346,7 @@ export default function ChatScreen() {
       const mode = isGoalIntake ? 'goal_intake' : undefined;
       const { data, error } = await supabase.functions.invoke('chat-agent', {
         body: {
+          mode, // <-- THIS WAS MISSING!
           message: userMsgText,
           history: recentHistory,
           attachments: attachmentData ? [attachmentData] : [],
@@ -378,11 +386,26 @@ export default function ChatScreen() {
 
               // 2. Trigger Plan Generation
               setIsTyping(true);
-              setThinkingText("Generating your full roadmap...");
+              setThinkingText("Creating your goal and generating roadmap...");
 
               try {
-                await useGoalsStore.getState().generateFullPlan('new-goal', {
+                // First, create the goal and get the real ID
+                const newGoal = await useGoalsStore.getState().createGoal({
+                  goal_type: intakeResult.data.goal || 'lose_weight',
+                  start_value: intakeResult.data.weight,
+                  target_value: intakeResult.data.target_weight,
+                  target_unit: 'kg',
+                  duration_weeks: intakeResult.data.duration_weeks,
+                  ai_summary: intakeResult.summary || '',
+                  status: 'active' as const
+                });
+
+                if (!newGoal?.id) throw new Error('Failed to create goal');
+
+                // Then generate the plan using the real goal ID
+                await useGoalsStore.getState().generateFullPlan(newGoal.id, {
                   ...intakeResult.data,
+                  durationWeeks: intakeResult.data.duration_weeks,
                   userId: user.id
                 });
 
@@ -421,11 +444,18 @@ export default function ChatScreen() {
 
       setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
 
-    } catch (error) {
+    } catch (error: any) {
       console.error('Chat error:', error);
+      // Log more details for debugging
+      if (error.context) {
+        console.error('Error context:', JSON.stringify(error.context, null, 2));
+      }
+      if (error.message) {
+        console.error('Error message:', error.message);
+      }
       setMessages(prev => [...prev, {
         id: (Date.now() + 1).toString(),
-        text: "Sorry, I couldn't reach the server. Please try again.",
+        text: `Sorry, something went wrong: ${error.message || 'Unknown error'}`,
         isUser: false
       }]);
     } finally {
@@ -459,8 +489,14 @@ export default function ChatScreen() {
           <View className="flex-row items-center">
             {/* Toggle Wizard Button */}
 
-            <Pressable onPress={() => handleNewChat(false)} className="p-2 mr-1">
-              <Ionicons name="add" size={28} color="#4285F4" />
+            {/* History Button */}
+            <Pressable onPress={() => setShowHistory(true)} className="p-2 mr-2">
+              <Ionicons name="time-outline" size={26} color="#4B5563" />
+            </Pressable>
+
+            {/* New Chat Button */}
+            <Pressable onPress={() => handleNewChat(false)} className="p-2">
+              <Ionicons name="add-circle" size={28} color="#4285F4" />
             </Pressable>
           </View>
         </View>

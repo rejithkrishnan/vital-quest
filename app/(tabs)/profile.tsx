@@ -1,16 +1,19 @@
 import { supabase } from '@/services/supabase';
 import { useAuthStore } from '@/stores/authStore';
 import { useGamificationStore } from '@/stores/gamificationStore';
+import { useGoalsStore } from '@/stores/goalsStore';
 import MemoryListModal from '@/components/MemoryListModal';
 import { Ionicons, FontAwesome5 } from '@expo/vector-icons';
 import { useEffect, useState } from 'react';
-import { Pressable, ScrollView, Text, View, Alert, Image, ActivityIndicator } from 'react-native';
+import { Pressable, ScrollView, Text, View, Image, ActivityIndicator, RefreshControl } from 'react-native';
+import { CustomAlert as Alert } from '@/utils/CustomAlert';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 
 export default function ProfileScreen() {
     const { signOut, user } = useAuthStore();
     const { xp, level, streak, fetchStats, addXp } = useGamificationStore();
+    const { resetUserData } = useGoalsStore();
 
     // Local state for profile details (height, weight)
     const [profile, setProfile] = useState<any>(null);
@@ -18,10 +21,26 @@ export default function ProfileScreen() {
     const [uploading, setUploading] = useState(false);
     const [showMemoryModal, setShowMemoryModal] = useState(false);
 
+    const [refreshing, setRefreshing] = useState(false);
+
     useEffect(() => {
-        fetchProfile();
-        fetchStats();
+        loadData();
     }, []);
+
+    const loadData = async () => {
+        setLoading(true);
+        await Promise.all([
+            fetchProfile(),
+            fetchStats()
+        ]);
+        setLoading(false);
+    };
+
+    const onRefresh = async () => {
+        setRefreshing(true);
+        await loadData();
+        setRefreshing(false);
+    };
 
     const fetchProfile = async () => {
         try {
@@ -168,7 +187,12 @@ export default function ProfileScreen() {
 
     return (
         <SafeAreaView className="flex-1 bg-gray-50">
-            <ScrollView showsVerticalScrollIndicator={false}>
+            <ScrollView
+                showsVerticalScrollIndicator={false}
+                refreshControl={
+                    <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+                }
+            >
                 {/* Header Profile Section */}
                 <View className="bg-white p-6 pb-8 rounded-b-[32px] shadow-sm mb-6">
                     <View className="items-center">
@@ -242,10 +266,26 @@ export default function ProfileScreen() {
                     <Text className="text-xs font-bold text-gray-400 uppercase mb-2">Developer Tools</Text>
                     <Pressable
                         onPress={() => addXp(50)}
-                        className="bg-gray-900 p-3 rounded-lg flex-row items-center justify-center space-x-2"
+                        className="bg-gray-900 p-3 rounded-lg flex-row items-center justify-center space-x-2 mb-3"
                     >
                         <Ionicons name="construct" size={16} color="white" />
                         <Text className="text-white font-medium">Add 50 XP (Test Level Up)</Text>
+                    </Pressable>
+                    <Pressable
+                        onPress={() => {
+                            Alert.alert(
+                                "Reset All Data",
+                                "This will delete all your goals, plans, chats, and AI memories. Are you sure?",
+                                [
+                                    { text: "Cancel", style: "cancel" },
+                                    { text: "Reset", style: "destructive", onPress: () => resetUserData() }
+                                ]
+                            );
+                        }}
+                        className="bg-red-600 p-3 rounded-lg flex-row items-center justify-center space-x-2"
+                    >
+                        <Ionicons name="trash" size={16} color="white" />
+                        <Text className="text-white font-medium">Reset All Data</Text>
                     </Pressable>
                 </View>
 
