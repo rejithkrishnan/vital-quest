@@ -30,7 +30,6 @@ export default function PlansScreen() {
 
     // Initial Load
     useEffect(() => {
-        console.log("🔄 PlansScreen Mounted, fetching active goal...");
         fetchActiveGoal();
     }, []);
 
@@ -65,30 +64,24 @@ export default function PlansScreen() {
         };
 
         if (!activeGoal) {
-            console.log("⚠️ No Active Goal, using fallback dates");
             return generateFallback();
         }
-
-        console.log("✅ Active Goal Found:", { start: activeGoal.start_date, end: activeGoal.target_date });
 
         const start = new Date(activeGoal.start_date);
         let end = activeGoal.target_date ? new Date(activeGoal.target_date) : null;
 
         // If end date is missing, calculate from duration or default to 12 weeks
         if (!end || isNaN(end.getTime())) {
-            console.log("⚠️ Target date missing/invalid, calculating from duration...");
             end = new Date(start);
             const weeks = activeGoal.duration_weeks || 12;
             end.setDate(start.getDate() + (weeks * 7));
         }
 
         if (isNaN(start.getTime())) {
-            console.log("❌ Invalid Start Date");
             return generateFallback();
         }
 
         if (start > end) {
-            console.log("❌ Start > End");
             return generateFallback();
         }
 
