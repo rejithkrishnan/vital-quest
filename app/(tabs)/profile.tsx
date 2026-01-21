@@ -1,4 +1,5 @@
 import { supabase } from '@/services/supabase';
+import { useRouter } from 'expo-router';
 import { useAuthStore } from '@/stores/authStore';
 import { useGamificationStore } from '@/stores/gamificationStore';
 import { useGoalsStore } from '@/stores/goalsStore';
@@ -11,6 +12,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 
 export default function ProfileScreen() {
+    const router = useRouter();
     const { signOut, user } = useAuthStore();
     const { xp, level, streak, fetchStats, addXp } = useGamificationStore();
     const { resetUserData } = useGoalsStore();
@@ -261,6 +263,26 @@ export default function ProfileScreen() {
                     </Pressable>
                 </View>
 
+                {/* Settings Section */}
+                <View className="px-6 mb-6">
+                    <Text className="text-xs font-bold text-gray-400 uppercase mb-2">App Settings</Text>
+                    <Pressable
+                        onPress={() => router.push('/settings')}
+                        className="bg-white p-4 rounded-xl flex-row items-center justify-between shadow-sm border border-gray-100"
+                    >
+                        <View className="flex-row items-center">
+                            <View className="bg-gray-100 p-2 rounded-full">
+                                <Ionicons name="settings-sharp" size={20} color="#4B5563" />
+                            </View>
+                            <View className="ml-4">
+                                <Text className="text-gray-900 font-semibold">Preferences</Text>
+                                <Text className="text-gray-500 text-xs">Hydration, Notifications</Text>
+                            </View>
+                        </View>
+                        <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
+                    </Pressable>
+                </View>
+
                 {/* Debug Zone */}
                 <View className="px-6 mb-6">
                     <Text className="text-xs font-bold text-gray-400 uppercase mb-2">Developer Tools</Text>
@@ -353,6 +375,6 @@ export default function ProfileScreen() {
             </ScrollView>
 
             <MemoryListModal visible={showMemoryModal} onClose={() => setShowMemoryModal(false)} />
-        </SafeAreaView>
+        </SafeAreaView >
     );
 }

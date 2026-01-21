@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useEffect, useState, useMemo } from 'react';
 import { ActivityIndicator, Pressable, Text, View, TouchableOpacity } from 'react-native';
-import MealLogModal from './MealLogModal';
+import MealUpdateModal from './MealUpdateModal';
 
 export default function DailyPlanWidget() {
     const router = useRouter();
@@ -210,13 +210,13 @@ export default function DailyPlanWidget() {
                 {!nextTask?.is_completed && nextTask?.task_type === 'nutrition' && (
                     <View className="pr-4 justify-center">
                         <TouchableOpacity onPress={() => handleLogTask(nextTask)} className="bg-white p-2 rounded-xl shadow-sm border border-gray-100">
-                            <Ionicons name="camera-outline" size={24} color="#374151" />
+                            <Ionicons name="create-outline" size={24} color="#374151" />
                         </TouchableOpacity>
                     </View>
                 )}
             </View>
 
-            <MealLogModal
+            <MealUpdateModal
                 visible={logModalVisible}
                 onClose={() => {
                     setLogModalVisible(false);

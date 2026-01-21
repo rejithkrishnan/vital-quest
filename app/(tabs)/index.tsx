@@ -1,5 +1,7 @@
 import DailyPlanWidget from '@/components/DailyPlanWidget';
 import GoalProgressWidget from '@/components/GoalProgressWidget';
+import DailyBriefingWidget from '@/components/DailyBriefingWidget';
+import WaterMonitoringWidget from '@/components/WaterMonitoringWidget';
 import GamificationWidget from '@/components/GamificationWidget';
 import { useAuthStore } from '@/stores/authStore';
 import { useGamificationStore } from '@/stores/gamificationStore';
@@ -55,6 +57,9 @@ export default function HomeScreen() {
           <Text className="text-3xl font-bold text-gray-900">{user?.user_metadata?.full_name?.split(' ')[0] || 'Questor'}</Text>
         </View>
 
+        {/* Daily Briefing Widget */}
+        <DailyBriefingWidget />
+
         {/* Goal Progress Widget */}
         <GoalProgressWidget />
 
@@ -62,9 +67,12 @@ export default function HomeScreen() {
         <GamificationWidget />
 
         {/* Daily Plan Widget */}
-        <View className="mt-6">
+        <View className="mt-6 mb-6">
           <DailyPlanWidget />
         </View>
+
+        {/* Water Intake (Bottom) */}
+        <WaterMonitoringWidget />
       </ScrollView>
     </SafeAreaView>
   );

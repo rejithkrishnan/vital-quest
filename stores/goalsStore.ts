@@ -23,6 +23,7 @@ export interface HealthGoal {
     protein_target: number;
     carbs_target: number;
     fat_target: number;
+    daily_water_target: number;
 }
 
 export interface WeeklyPlan {
@@ -58,6 +59,7 @@ export interface DailyPlan {
     protein_target: number;
     carbs_target: number;
     fat_target: number;
+    water_intake: number;
 }
 
 export interface GoalsState {
@@ -72,14 +74,17 @@ export interface GoalsState {
     createGoal: (goalData: Partial<HealthGoal>) => Promise<HealthGoal | null>;
     validateGoalWithAI: (description: string, currentWeight: number, targetWeight: number, durationWeeks: number) => Promise<any>;
     generateFullPlan: (goalId: string, context: any) => Promise<void>;
-    generateDailyTasks: (date: Date) => Promise<void>; // New action
+    generateDailyTasks: (date: Date) => Promise<void>;
+    generateDailySummary: () => Promise<void>; // New Action
     fetchWeeklyPlans: (goalId: string) => Promise<void>;
     fetchDailyPlan: (date: Date) => Promise<void>;
     toggleTaskCompletion: (taskId: string, isCompleted: boolean) => Promise<void>;
+    updateTaskMeal: (taskId: string, newMealData: Partial<PlanTask>) => Promise<void>;
     analyzeMeal: (imageOrText: string | { uri: string, base64?: string }, context: any) => Promise<any>;
     logMeal: (taskId: string, logData: any, photoUrl?: string) => Promise<void>;
     deleteGoal: (goalId: string) => Promise<void>;
     resetUserData: () => Promise<void>;
+    logWater: (amount: number) => Promise<void>;
     subscribeToRealtime: () => () => void;
 }
 
@@ -195,7 +200,12 @@ export const useGoalsStore = create<GoalsState>((set, get) => ({
             const { data, error } = await supabase.functions.invoke('chat-agent', {
                 body: {
                     mode: 'generate_roadmap', // Updated mode
-                    context: { ...context, goalId },
+                    context: {
+                        ...context,
+                        goalId,
+                        diet: context.diet || 'Balanced',
+                        region: context.region || 'Indian'
+                    },
                     userId: user.id
                 }
             });
@@ -217,6 +227,7 @@ export const useGoalsStore = create<GoalsState>((set, get) => ({
                 .from('health_goals')
                 .update({
                     daily_calorie_target: planJson.daily_calorie_target,
+                    daily_water_target: planJson.daily_water_target,
                     protein_target: planJson.macros?.protein,
                     carbs_target: planJson.macros?.carbs,
                     fat_target: planJson.macros?.fat
@@ -344,10 +355,10 @@ export const useGoalsStore = create<GoalsState>((set, get) => ({
                         time_slot: meal.time || '12:00',
                         meal_type: meal.meal_type || 'meal',
                         metadata: {
-                            calories: meal.calories,
-                            protein: meal.protein,
-                            carbs: meal.carbs,
-                            fat: meal.fat
+                            calories: meal.calories || 0,
+                            protein: meal.protein || 0,
+                            carbs: meal.carbs || 0,
+                            fat: meal.fat || 0
                         }
                     });
                 });
@@ -362,8 +373,8 @@ export const useGoalsStore = create<GoalsState>((set, get) => ({
                         task_type: 'workout',
                         time_slot: workout.time || '18:00',
                         metadata: {
-                            duration: workout.duration,
-                            calories_burned: workout.calories_burned
+                            duration: workout.duration || 30,
+                            calories_burned: workout.calories_burned || 0
                         }
                     });
                 });
@@ -453,7 +464,12 @@ export const useGoalsStore = create<GoalsState>((set, get) => ({
                     task_type: 'nutrition',
                     time_slot: meal.time || '12:00',
                     meal_type: meal.meal_type || 'meal',
-                    metadata: { calories: meal.calories, protein: meal.protein, carbs: meal.carbs, fat: meal.fat }
+                    metadata: {
+                        calories: meal.calories || 0,
+                        protein: meal.protein || 0,
+                        carbs: meal.carbs || 0,
+                        fat: meal.fat || 0
+                    }
                 });
             });
 
@@ -465,7 +481,7 @@ export const useGoalsStore = create<GoalsState>((set, get) => ({
                     xp_reward: 30,
                     task_type: 'workout',
                     time_slot: workout.time || '17:00',
-                    metadata: { duration: workout.duration, calories_burned: workout.calories_burned }
+                    metadata: { duration: workout.duration || 30, calories_burned: workout.calories_burned || 0 }
                 });
             });
 
@@ -478,6 +494,44 @@ export const useGoalsStore = create<GoalsState>((set, get) => ({
             console.error("Lazy generation failed", e);
         } finally {
             set({ isLoading: false });
+        }
+    },
+
+    generateDailySummary: async () => {
+        const { dailyPlan, tasks } = get();
+        if (!dailyPlan) return;
+
+        try {
+            const { data: { session } } = await supabase.auth.getSession();
+            const userName = useAuthStore.getState().profile?.full_name;
+
+            console.log("Generating AI Summary...");
+
+            const { data, error } = await supabase.functions.invoke('chat-agent', {
+                body: {
+                    mode: 'generate_summary',
+                    context: {
+                        tasks,
+                        hour: new Date().getHours(),
+                        userName
+                    },
+                    userId: session?.user?.id || 'anon'
+                }
+            });
+
+            if (error) throw error;
+            console.log("AI Summary Generated:", data.summary);
+
+            if (data.summary) {
+                // Update Local
+                set({ dailyPlan: { ...dailyPlan, summary: data.summary } });
+                // Use standard supabase client to update (ensure we match the import)
+                supabase.from('daily_plans').update({ summary: data.summary }).eq('id', dailyPlan.id).then(({ error }) => {
+                    if (error) console.error("Failed to save summary to DB:", error);
+                });
+            }
+        } catch (e) {
+            console.error("Summary gen failed:", e);
         }
     },
 
@@ -546,12 +600,53 @@ export const useGoalsStore = create<GoalsState>((set, get) => ({
     },
 
     toggleTaskCompletion: async (taskId, isCompleted) => {
+        const { tasks, dailyPlan } = get();
+        const task = tasks.find(t => t.id === taskId);
+        if (!task || !dailyPlan) return;
+
+        // Validation for Marking Complete
+        if (isCompleted) {
+            const now = new Date();
+            const todayStr = now.toISOString().split('T')[0];
+            const planDateStr = dailyPlan.date;
+
+            // 1. Future Days Check
+            if (planDateStr > todayStr) {
+                Alert.alert("Future Plan", "You cannot complete tasks for future days yet!");
+                return;
+            }
+
+            // 2. 2-Hour Window Check (Only for Today)
+            if (planDateStr === todayStr) {
+                // Parse time slot
+                const timeParts = task.time_slot.match(/(\d+):(\d+)/);
+                if (timeParts) {
+                    let h = parseInt(timeParts[1]);
+                    const m = parseInt(timeParts[2]);
+
+                    if (task.time_slot.toLowerCase().includes('pm') && h < 12) h += 12;
+                    if (task.time_slot.toLowerCase().includes('am') && h === 12) h = 0;
+
+                    const taskTime = new Date();
+                    taskTime.setHours(h, m, 0, 0);
+
+                    const diffMs = taskTime.getTime() - now.getTime();
+                    const diffHours = diffMs / (1000 * 60 * 60);
+
+                    if (diffHours > 2) {
+                        Alert.alert("Too Early!", `You cannot complete this task yet. It's scheduled for ${task.time_slot}.`);
+                        return;
+                    }
+                }
+            }
+        }
+
         // Optimistic update
-        const { tasks } = get();
+        // const { tasks } = get(); // already got tasks
         const taskIndex = tasks.findIndex(t => t.id === taskId);
         if (taskIndex === -1) return;
 
-        const task = tasks[taskIndex];
+        // const task = tasks[taskIndex]; // already got task
         const updatedTasks = tasks.map(t => t.id === taskId ? { ...t, is_completed: isCompleted } : t);
         set({ tasks: updatedTasks });
 
@@ -575,6 +670,41 @@ export const useGoalsStore = create<GoalsState>((set, get) => ({
             set({ tasks });
             // Revert XP (Optional but good)
             useGamificationStore.getState().addXp(-xpDelta);
+        }
+
+        // Trigger AI Summary Update (Fire and forget)
+        get().generateDailySummary();
+    },
+
+    updateTaskMeal: async (taskId: string, newMealData: Partial<PlanTask>) => {
+        try {
+            const { error } = await supabase
+                .from('plan_tasks')
+                .update({
+                    description: newMealData.description,
+                    metadata: newMealData.metadata,
+                    meal_type: newMealData.meal_type
+                })
+                .eq('id', taskId);
+
+            if (error) throw error;
+
+            // Updated local state
+            const currentTasks = get().tasks;
+            const updatedTasks = currentTasks.map(t =>
+                t.id === taskId ? { ...t, ...newMealData } : t
+            );
+            set({ tasks: updatedTasks });
+
+            // Refresh daily plan to update counters if it's today's plan
+            const dailyPlan = get().dailyPlan;
+            if (dailyPlan) {
+                await get().fetchDailyPlan(new Date(dailyPlan.date));
+            }
+        } catch (e: any) {
+            console.error('Update task error:', e);
+            set({ error: e.message });
+            throw e;
         }
     },
 
@@ -861,6 +991,32 @@ export const useGoalsStore = create<GoalsState>((set, get) => ({
             console.error('Reset failed:', error);
             Alert.alert('Reset Failed', error.message);
             set({ isLoading: false });
+        }
+    },
+
+    logWater: async (amount: number) => {
+        const { dailyPlan } = get();
+        if (!dailyPlan) return;
+
+        console.log(`Logging water: ${amount}ml`);
+
+        // Optimistic update
+        const current = dailyPlan.water_intake || 0;
+        const newVal = Math.max(0, current + amount); // Prevent negative
+
+        set({ dailyPlan: { ...dailyPlan, water_intake: newVal } });
+
+        try {
+            const { error } = await supabase
+                .from('daily_plans')
+                .update({ water_intake: newVal })
+                .eq('id', dailyPlan.id);
+
+            if (error) throw error;
+        } catch (e) {
+            console.error("Failed to log water:", e);
+            set({ dailyPlan: { ...dailyPlan, water_intake: current } }); // Revert
+            Alert.alert("Sync Error", "Failed to update water intake.");
         }
     },
 

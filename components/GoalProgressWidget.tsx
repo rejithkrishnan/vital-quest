@@ -7,9 +7,11 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 
 export default function GoalProgressWidget() {
-    const { activeGoal, isLoading, fetchActiveGoal, deleteGoal } = useGoalsStore();
+    const { activeGoal, isLoading, fetchActiveGoal, deleteGoal, dailyPlan, tasks, fetchDailyPlan, weeklyPlans, fetchWeeklyPlans } = useGoalsStore();
     const [activePage, setActivePage] = useState(0);
     const [containerWidth, setContainerWidth] = useState(0);
+    const [isSummaryExpanded, setIsSummaryExpanded] = useState(false);
+    const [weekIndex, setWeekIndex] = useState(0);
     const scrollRef = useRef<ScrollView>(null);
     const { width: windowWidth } = useWindowDimensions();
 
@@ -22,7 +24,24 @@ export default function GoalProgressWidget() {
 
     useEffect(() => {
         fetchActiveGoal();
+        fetchDailyPlan(new Date());
     }, []);
+
+    useEffect(() => {
+        if (activeGoal?.id) {
+            fetchWeeklyPlans(activeGoal.id).then(() => {
+                if (activeGoal.start_date) {
+                    const now = new Date();
+                    const start = new Date(activeGoal.start_date);
+                    const diffTime = now.getTime() - start.getTime();
+                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                    const current = Math.max(0, Math.ceil(diffDays / 7) - 1);
+                    setWeekIndex(current);
+                }
+            });
+        }
+    }, [activeGoal?.id]);
+
 
     const handleLayout = (event: LayoutChangeEvent) => {
         const { width } = event.nativeEvent.layout;
@@ -124,6 +143,23 @@ export default function GoalProgressWidget() {
         endDateDisplay = formatDate(start.toISOString());
     }
 
+    // Calculate Daily Stats (reusing logic from plans.tsx)
+    const consumed = tasks
+        .filter(t => t.task_type === 'nutrition' && t.is_completed)
+        .reduce((sum, t) => sum + (t.metadata?.calories || 0), 0);
+
+    const proteinConsumed = tasks
+        .filter(t => t.task_type === 'nutrition' && t.is_completed)
+        .reduce((sum, t) => sum + (t.metadata?.protein || 0), 0);
+
+    const carbsConsumed = tasks
+        .filter(t => t.task_type === 'nutrition' && t.is_completed)
+        .reduce((sum, t) => sum + (t.metadata?.carbs || 0), 0);
+
+    const fatConsumed = tasks
+        .filter(t => t.task_type === 'nutrition' && t.is_completed)
+        .reduce((sum, t) => sum + (t.metadata?.fat || 0), 0);
+
     const renderPage1Content = () => (
         <>
             <View style={styles.header}>
@@ -170,10 +206,24 @@ export default function GoalProgressWidget() {
                 <Text style={styles.durationText}>{activeGoal.duration_weeks} weeks</Text>
             </View>
 
+
             {activeGoal.ai_summary && (
-                <Text style={styles.summary} numberOfLines={2}>
-                    {activeGoal.ai_summary}
-                </Text>
+                <View style={styles.summaryContainer}>
+                    <Text
+                        style={styles.summary}
+                        numberOfLines={isSummaryExpanded ? undefined : 3}
+                    >
+                        {activeGoal.ai_summary}
+                    </Text>
+                    <TouchableOpacity
+                        onPress={() => setIsSummaryExpanded(!isSummaryExpanded)}
+                        style={styles.expandButton}
+                    >
+                        <Text style={styles.expandText}>
+                            {isSummaryExpanded ? 'Show Less' : 'Read More'}
+                        </Text>
+                    </TouchableOpacity>
+                </View>
             )}
         </>
     );
@@ -192,33 +242,106 @@ export default function GoalProgressWidget() {
                     <View style={[styles.macroIcon, { backgroundColor: '#FEF3C7' }]}>
                         <Ionicons name="flame-outline" size={20} color="#F59E0B" />
                     </View>
-                    <Text style={styles.macroValue}>{activeGoal.daily_calorie_target || '--'}</Text>
+                    <Text style={styles.macroValue} numberOfLines={1} adjustsFontSizeToFit>
+                        {consumed} / {dailyPlan?.calorie_target || activeGoal.daily_calorie_target || '--'}
+                    </Text>
                     <Text style={styles.macroLabel}>Calories</Text>
                 </View>
                 <View style={styles.macroItem}>
                     <View style={[styles.macroIcon, { backgroundColor: '#DBEAFE' }]}>
                         <Ionicons name="fish-outline" size={20} color="#3B82F6" />
                     </View>
-                    <Text style={styles.macroValue}>{activeGoal.protein_target || '--'}g</Text>
+                    <Text style={styles.macroValue} numberOfLines={1} adjustsFontSizeToFit>
+                        {proteinConsumed} / {dailyPlan?.protein_target || activeGoal.protein_target || '--'}g
+                    </Text>
                     <Text style={styles.macroLabel}>Protein</Text>
                 </View>
                 <View style={styles.macroItem}>
                     <View style={[styles.macroIcon, { backgroundColor: '#D1FAE5' }]}>
                         <Ionicons name="leaf-outline" size={20} color="#10B981" />
                     </View>
-                    <Text style={styles.macroValue}>{activeGoal.carbs_target || '--'}g</Text>
+                    <Text style={styles.macroValue} numberOfLines={1} adjustsFontSizeToFit>
+                        {carbsConsumed} / {dailyPlan?.carbs_target || activeGoal.carbs_target || '--'}g
+                    </Text>
                     <Text style={styles.macroLabel}>Carbs</Text>
                 </View>
                 <View style={styles.macroItem}>
                     <View style={[styles.macroIcon, { backgroundColor: '#FCE7F3' }]}>
                         <Ionicons name="water-outline" size={20} color="#EC4899" />
                     </View>
-                    <Text style={styles.macroValue}>{activeGoal.fat_target || '--'}g</Text>
+                    <Text style={styles.macroValue} numberOfLines={1} adjustsFontSizeToFit>
+                        {fatConsumed} / {dailyPlan?.fat_target || activeGoal.fat_target || '--'}g
+                    </Text>
                     <Text style={styles.macroLabel}>Fat</Text>
                 </View>
             </View>
         </>
     );
+
+    const renderPage3Content = () => {
+        const currentWeekPlan = weeklyPlans[weekIndex];
+        const maxWeek = (activeGoal?.duration_weeks || 1) - 1;
+
+        return (
+            <>
+                <View style={styles.header}>
+                    <View>
+                        <Text style={styles.label}>Weekly Roadmap</Text>
+                        <Text style={styles.title}>Week {weekIndex + 1}</Text>
+                    </View>
+                    <View style={{ flexDirection: 'row', gap: 16 }}>
+                        <TouchableOpacity onPress={() => setWeekIndex(Math.max(0, weekIndex - 1))} disabled={weekIndex === 0}>
+                            <Ionicons name="chevron-back" size={24} color={weekIndex === 0 ? "#E5E7EB" : "#4B5563"} />
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={() => setWeekIndex(Math.min(maxWeek, weekIndex + 1))} disabled={weekIndex === maxWeek}>
+                            <Ionicons name="chevron-forward" size={24} color={weekIndex === maxWeek ? "#E5E7EB" : "#4B5563"} />
+                        </TouchableOpacity>
+                    </View>
+                </View>
+
+                {currentWeekPlan ? (
+                    <View style={{ gap: 12 }}>
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <Text style={{ fontSize: 16, fontWeight: '600', color: '#111827' }}>
+                                Focus: {currentWeekPlan.focus_areas}
+                            </Text>
+                            <View style={{ backgroundColor: currentWeekPlan.status === 'completed' ? '#DCFCE7' : '#DBEAFE', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 }}>
+                                <Text style={{ fontSize: 10, color: currentWeekPlan.status === 'completed' ? '#166534' : '#1E40AF', fontWeight: 'bold', paddingHorizontal: 6, paddingVertical: 2 }}>
+                                    {currentWeekPlan.status?.toUpperCase() || 'UPCOMING'}
+                                </Text>
+                            </View>
+                        </View>
+
+                        <View style={{ backgroundColor: '#F9FAFB', padding: 12, borderRadius: 12 }}>
+                            <View style={{ flexDirection: 'row', gap: 8, marginBottom: 4 }}>
+                                <Ionicons name="bulb-outline" size={16} color="#F59E0B" />
+                                <Text style={{ fontSize: 12, fontWeight: '600', color: '#4B5563' }}>Expert Tip</Text>
+                            </View>
+                            <Text style={{ fontSize: 13, color: '#6B7280', lineHeight: 18 }}>
+                                {currentWeekPlan.ai_tips || "Stay consistent with your routine this week!"}
+                            </Text>
+                        </View>
+
+                        <View style={styles.weightRow}>
+                            <View style={styles.weightItem}>
+                                <Text style={styles.weightLabel}>Cals</Text>
+                                <Text style={[styles.weightValue, { fontSize: 18 }]}>{currentWeekPlan.calorie_target}</Text>
+                            </View>
+                            <View style={styles.weightDivider} />
+                            <View style={styles.weightItem}>
+                                <Text style={styles.weightLabel}>Start</Text>
+                                <Text style={[styles.weightValue, { fontSize: 18 }]}>{formatDate(currentWeekPlan.week_start_date)}</Text>
+                            </View>
+                        </View>
+                    </View>
+                ) : (
+                    <View style={{ alignItems: 'center', padding: 20 }}>
+                        <Text style={{ color: '#9CA3AF' }}>No plan data for this week.</Text>
+                    </View>
+                )}
+            </>
+        );
+    };
 
     const isWide = windowWidth > 768;
 
@@ -266,9 +389,22 @@ export default function GoalProgressWidget() {
                 </View>
 
                 {activeGoal.ai_summary && (
-                    <Text style={styles.wideSummary} numberOfLines={2}>
-                        {activeGoal.ai_summary}
-                    </Text>
+                    <View style={styles.wideSummaryContainer}>
+                        <Text
+                            style={styles.wideSummary}
+                            numberOfLines={isSummaryExpanded ? undefined : 4}
+                        >
+                            {activeGoal.ai_summary}
+                        </Text>
+                        <TouchableOpacity
+                            onPress={() => setIsSummaryExpanded(!isSummaryExpanded)}
+                            style={styles.expandButton}
+                        >
+                            <Text style={styles.expandText}>
+                                {isSummaryExpanded ? 'Show Less' : 'Read More'}
+                            </Text>
+                        </TouchableOpacity>
+                    </View>
                 )}
 
                 <View style={styles.wideFooter}>
@@ -293,7 +429,9 @@ export default function GoalProgressWidget() {
                             <Ionicons name="flame" size={20} color="#F59E0B" />
                         </View>
                         <View>
-                            <Text style={styles.wideMacroValue}>{activeGoal.daily_calorie_target || '--'}</Text>
+                            <Text style={styles.wideMacroValue} numberOfLines={1} adjustsFontSizeToFit>
+                                {consumed} / {dailyPlan?.calorie_target || activeGoal.daily_calorie_target || '--'}
+                            </Text>
                             <Text style={styles.wideMacroLabel}>Kcal</Text>
                         </View>
                     </View>
@@ -302,7 +440,9 @@ export default function GoalProgressWidget() {
                             <Ionicons name="fish" size={20} color="#3B82F6" />
                         </View>
                         <View>
-                            <Text style={styles.wideMacroValue}>{activeGoal.protein_target || '--'}g</Text>
+                            <Text style={styles.wideMacroValue} numberOfLines={1} adjustsFontSizeToFit>
+                                {proteinConsumed} / {dailyPlan?.protein_target || activeGoal.protein_target || '--'}g
+                            </Text>
                             <Text style={styles.wideMacroLabel}>Protein</Text>
                         </View>
                     </View>
@@ -311,7 +451,9 @@ export default function GoalProgressWidget() {
                             <Ionicons name="leaf" size={20} color="#10B981" />
                         </View>
                         <View>
-                            <Text style={styles.wideMacroValue}>{activeGoal.carbs_target || '--'}g</Text>
+                            <Text style={styles.wideMacroValue} numberOfLines={1} adjustsFontSizeToFit>
+                                {carbsConsumed} / {dailyPlan?.carbs_target || activeGoal.carbs_target || '--'}g
+                            </Text>
                             <Text style={styles.wideMacroLabel}>Carbs</Text>
                         </View>
                     </View>
@@ -320,7 +462,9 @@ export default function GoalProgressWidget() {
                             <Ionicons name="water" size={20} color="#EC4899" />
                         </View>
                         <View>
-                            <Text style={styles.wideMacroValue}>{activeGoal.fat_target || '--'}g</Text>
+                            <Text style={styles.wideMacroValue} numberOfLines={1} adjustsFontSizeToFit>
+                                {fatConsumed} / {dailyPlan?.fat_target || activeGoal.fat_target || '--'}g
+                            </Text>
                             <Text style={styles.wideMacroLabel}>Fat</Text>
                         </View>
                     </View>
@@ -356,6 +500,11 @@ export default function GoalProgressWidget() {
                     <View style={[styles.page, { width: effectiveWidth }]}>
                         {renderPage2Content()}
                     </View>
+
+                    {/* Page 3: Weekly Roadmap */}
+                    <View style={[styles.page, { width: effectiveWidth }]}>
+                        {renderPage3Content()}
+                    </View>
                 </ScrollView>
             )}
 
@@ -364,6 +513,7 @@ export default function GoalProgressWidget() {
                 <View style={styles.pagination}>
                     <View style={[styles.dot, activePage === 0 && styles.dotActive]} />
                     <View style={[styles.dot, activePage === 1 && styles.dotActive]} />
+                    <View style={[styles.dot, activePage === 2 && styles.dotActive]} />
                 </View>
             )}
         </View>
@@ -422,8 +572,8 @@ const styles = StyleSheet.create({
     container: {
         backgroundColor: 'white',
         borderRadius: 24,
-        paddingVertical: 20,
-        marginBottom: 24,
+        paddingVertical: 12,
+        marginBottom: 20,
         borderWidth: 1,
         borderColor: '#F3F4F6',
         shadowColor: '#000',
@@ -441,7 +591,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        marginBottom: 16,
+        marginBottom: 8,
     },
     // ... existing styles ...
     wideContainer: {
@@ -470,9 +620,9 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'space-between',
         backgroundColor: '#F9FAFB',
-        borderRadius: 16,
-        padding: 16,
-        marginBottom: 12,
+        borderRadius: 12,
+        padding: 12,
+        marginBottom: 8,
     },
     weightItem: {
         alignItems: 'center',
@@ -501,7 +651,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        marginBottom: 12,
+        marginBottom: 8,
     },
     dateItem: {
         flexDirection: 'row',
@@ -521,7 +671,6 @@ const styles = StyleSheet.create({
         fontSize: 13,
         color: '#6B7280',
         lineHeight: 18,
-        fontStyle: 'italic',
     },
     macroGrid: {
         flexDirection: 'row',
@@ -532,16 +681,16 @@ const styles = StyleSheet.create({
         width: '47%',
         backgroundColor: '#F9FAFB',
         borderRadius: 16,
-        padding: 16,
+        padding: 10,
         alignItems: 'center',
     },
     macroIcon: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
+        width: 32,
+        height: 32,
+        borderRadius: 16,
         alignItems: 'center',
         justifyContent: 'center',
-        marginBottom: 8,
+        marginBottom: 4,
     },
     macroValue: {
         fontSize: 20,
@@ -556,7 +705,7 @@ const styles = StyleSheet.create({
     pagination: {
         flexDirection: 'row',
         justifyContent: 'center',
-        marginTop: 16,
+        marginTop: 8,
         gap: 6,
     },
     dot: {
@@ -675,7 +824,7 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
     },
     wideMacroValue: {
-        fontSize: 16,
+        fontSize: 14,
         fontWeight: 'bold',
         color: '#111827',
     },
@@ -687,7 +836,20 @@ const styles = StyleSheet.create({
         fontSize: 14,
         color: '#4B5563',
         lineHeight: 20,
-        marginBottom: 16,
-        fontStyle: 'italic',
+    },
+    summaryContainer: {
+        marginTop: 2,
+    },
+    wideSummaryContainer: {
+        marginBottom: 12,
+    },
+    expandButton: {
+        marginTop: 2,
+        alignSelf: 'flex-start',
+    },
+    expandText: {
+        fontSize: 12,
+        color: '#4285F4',
+        fontWeight: '600',
     },
 });

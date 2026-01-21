@@ -6,7 +6,9 @@
     "start": "expo start",
     "android": "expo start --android",
     "ios": "expo start --ios",
-    "web": "expo start --web"
+    "web": "expo start --web",
+    "deploy:functions": "npx supabase functions deploy chat-agent --project-ref nodwouaygritoprsbrrf",
+    "deploy:db": "npx supabase db push"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",

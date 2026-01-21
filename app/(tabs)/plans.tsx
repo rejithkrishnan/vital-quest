@@ -5,7 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useGoalsStore } from '@/stores/goalsStore';
 import PlanHeader from '@/components/PlanHeader';
 import { useRouter } from 'expo-router';
-import MealLogModal from '@/components/MealLogModal';
+import MealUpdateModal from '@/components/MealUpdateModal';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Platform } from 'react-native';
 
@@ -15,8 +15,7 @@ export default function PlansScreen() {
     const [filter, setFilter] = useState('All');
     const [selectedDate, setSelectedDate] = useState(new Date());
 
-    // Meal Log Modal State
-    // Meal Log Modal State
+    // Meal Update Modal State
     const [logModalVisible, setLogModalVisible] = useState(false);
     const [selectedTask, setSelectedTask] = useState<any>(null);
     const [showDatePicker, setShowDatePicker] = useState(false);
@@ -316,7 +315,7 @@ export default function PlansScreen() {
                                 {!task.is_completed && task.task_type === 'nutrition' && (
                                     <View className="pr-4 justify-center">
                                         <TouchableOpacity onPress={() => handleLogTask(task)} className="bg-gray-50 p-2 rounded-xl">
-                                            <Ionicons name="camera-outline" size={24} color="#374151" />
+                                            <Ionicons name="create-outline" size={24} color="#374151" />
                                         </TouchableOpacity>
                                     </View>
                                 )}
@@ -326,7 +325,7 @@ export default function PlansScreen() {
                 </View>
             </ScrollView>
 
-            <MealLogModal
+            <MealUpdateModal
                 visible={logModalVisible}
                 onClose={() => {
                     setLogModalVisible(false);

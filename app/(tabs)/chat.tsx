@@ -46,7 +46,7 @@ export default function ChatScreen() {
   const flatListRef = useRef<FlatList>(null);
 
   const { xp, level, streak } = useGamificationStore();
-  const { user } = useAuthStore();
+  const { user, profile } = useAuthStore();
 
   // Handle action param (e.g., from Plans tab "Create Plan" button)
   useFocusEffect(
@@ -352,7 +352,7 @@ export default function ChatScreen() {
           attachments: attachmentData ? [attachmentData] : [],
           context: {
             userId: user.id, // Explicitly pass for memory storage
-            userName: user?.user_metadata?.full_name || 'User',
+            userName: profile?.full_name || user?.user_metadata?.full_name || 'User',
             xp,
             level,
             streak
@@ -376,8 +376,11 @@ export default function ChatScreen() {
           if (jsonMatch) {
             const intakeResult = JSON.parse(jsonMatch[0]);
             if (intakeResult.status === 'complete') {
-              // 1. Show the summary message first
-              const summaryMsg = intakeResult.summary || "Great! I have everything I need. Generating your plan now...";
+              // 1. Show a brief "Confirmed" message instead of re-posting the long summary
+              const summaryMsg = intakeResult.summary && intakeResult.summary.length < 100
+                ? intakeResult.summary
+                : "Confirmed! I'm creating your goals and generating your roadmap now...";
+
               setMessages(prev => [...prev, {
                 id: (Date.now() + 1).toString(),
                 text: summaryMsg,

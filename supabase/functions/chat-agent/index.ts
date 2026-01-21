@@ -193,7 +193,12 @@ serve(async (req: Request) => {
     
     ${retrievedContext}
     
-    Keep responses helpful, encouraging, and thorough. Provide detailed explanations when the user asks for advice or plans.`;
+    **CRITICAL TOPIC BOUNDARY:**
+    - You are a SPECIALIZED Health & Fitness Agent.
+    - You MUST **REFUSE** to answer questions unrelated to health, diet, fitness, mental well-being, or the VitalQuest app.
+    - If asked about coding (e.g. "write a python script"), math, politics, or general knowledge, politely decline: "I am your specific Health AI coach. I can only help with health and fitness queries."
+    
+    Keep responses helpful, encouraging, and thorough (within the health domain). Provide detailed explanations when the user asks for advice or plans.`;
 
     // Title generation mode
     if (mode === 'title') {
@@ -230,6 +235,61 @@ serve(async (req: Request) => {
       });
     }
 
+    // Daily Summary Generation Mode
+    if (mode === 'generate_summary') {
+      const { tasks, hour, userName } = context;
+
+      const summaryPrompt = `
+        You are VitalQuest, an enthusiastic AI Health Coach.
+        User Name: ${userName || 'Friend'}
+        Current Time Hour: ${hour}
+        Today's Tasks Summary: ${JSON.stringify(tasks)}
+
+        Task: Analyze the user's progress for today.
+        
+        Generate a concise, high-energy status update (30-40 words MAX).
+        
+        Structure:
+        1. Personalized Greeting (based on time: morning/afternoon/evening).
+        2. Progress acknowledgement (e.g. "You've crushed 3/5 tasks!" or "Great start with breakfast!").
+        3. Motivation for the NEXT specific task (mention its name and time).
+        
+        Tone: Encouraging, energetic, like a personal trainer.
+        Output: ONLY the plain text message. No markdown headers.
+      `;
+
+      const summaryBody = {
+        contents: [{ role: 'user', parts: [{ text: summaryPrompt }] }]
+      };
+
+      try {
+        const response = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(summaryBody),
+          }
+        );
+
+        if (!response.ok) throw new Error('Gemini API failed');
+
+        const data = await response.json();
+        const summary = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || "Keep pushing forward! You're doing great!";
+
+        return new Response(JSON.stringify({ summary }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 200,
+        });
+
+      } catch (error) {
+        return new Response(JSON.stringify({ summary: "Keep going! You're making progress every day!" }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 200,
+        });
+      }
+    }
+
     // --- 5a.8: Goal Intake Mode (Conversational) ---
     if (mode === 'goal_intake') {
       const intakePrompt = `
@@ -240,36 +300,38 @@ serve(async (req: Request) => {
         MEMORY BANK (Past Conversations):
         ${retrievedContext}
         
-        REQUIRED INFORMATION (Collect these 4 items):
+        REQUIRED INFORMATION (Collect these 6 items):
         1. Main Goal (e.g., "Lose weight", "Build muscle")
         2. Current Weight (in kg)
         3. Target Weight (in kg)
-        4. Timeline (in weeks or months, convert to weeks internally)
+        4. Timeline (e.g., 8 weeks)
+        5. Dietary Preference (e.g., Vegetarian, Non-Veg, Vegan, Keto)
+        6. Regional Preference (e.g., North Indian, South Indian, Mediterranean)
         
         CONVERSATION FLOW:
-        1. **First Turn:** Greet user. Check MEMORY BANK for any known info. If found, state it: "I recall you're 85kg. Is that correct?" Ask for the FIRST missing item.
-        2. **Subsequent Turns:** Acknowledge what user provided. Ask for the NEXT missing item. Keep responses SHORT (1-2 sentences max).
-        3. **Confirmation Turn:** Once you have all 4 items, summarize them in 1-2 sentences and ask: "Ready for me to generate your personalized plan?"
-        4. **Final Turn (After User Says Yes/Confirm):** Output the JSON below. DO NOT say anything else. No "Great!", no explanation. Just the JSON.
+        1. **Gather Items:** Check MEMORY BANK or context for any known info. Ask for missing items one by one. Keep responses SHORT (1-2 sentences).
+        2. **Detailed Summary:** ONCE ALL 6 ITEMS ARE COLLECTED, provide a DETAILED summary of the proposed plan. THIS SUMMARY MUST BE 50-70 WORDS LONG. Cover the nutrition strategy, regional food integration, and expected progress.
+        3. **Wait for Lock:** At the end of the summary, ask: "Does this roadmap look good? Ready to lock it in and generate your plan?"
+        4. **Final Turn (JSON):** ONLY AFTER the user gives a positive confirmation (e.g., "Confirm", "Lock it in"), output the JSON below. DO NOT say anything else. Just the JSON.
 
         CRITICAL RULES:
-        - DO NOT give diet advice, workout plans, or detailed explanations during intake.
-        - Keep ALL responses under 3 sentences until the confirmation turn.
-        - If user asks questions, briefly answer then redirect: "I can explain more once your plan is ready. For now, what's your [missing item]?"
+        - DO NOT provide JSON until AFTER the user confirms the detailed 50-70 word summary.
+        - If the user hasn't confirmed the summary, persist in plain text.
 
         OUTPUT FORMAT:
-        - If info is MISSING or awaiting confirmation: Respond in plain text (short).
-        - If user has confirmed and ALL 4 items are collected:
-          Output this JSON structure ONLY (no other text):
+        - Summary/Interaction: Plain text.
+        - Final Confirmation: 
           {
             "status": "complete",
             "data": {
               "goal": "lose_weight or build_muscle",
               "weight": number,
               "target_weight": number,
-              "duration_weeks": number
+              "duration_weeks": number,
+              "diet": "string",
+              "region": "string"
             },
-            "summary": "One sentence summary of the plan."
+            "summary": "The LATEST detailed 50-70 word summary you just provided."
           }
       `;
 
@@ -287,36 +349,39 @@ serve(async (req: Request) => {
          - Current Weight: ${context?.weight} kg
          - Target Weight: ${context?.target_weight} kg
          - Duration: ${context?.duration_weeks} weeks
+         - Diet: ${context?.diet || 'Balanced'}
+         - Region: ${context?.region || 'Indian'}
          
          OUTPUT FORMAT (JSON ONLY):
          {
-           "goal_summary": "Encouraging summary of the goal",
+           "goal_summary": "Thorough 50-70 word summary of the strategy",
            "daily_calorie_target": number,
+           "daily_water_target": number,
            "macros": { "protein": number, "carbs": number, "fat": number },
            "weekly_plans": [
-              { "week": 1, "focus": "...", "calorie_target": number, "ai_tips": "..." },
-              { "week": 2, "focus": "...", "calorie_target": number, "ai_tips": "..." },
+              { "week": 1, "focus": "...", "calorie_target": number, "ai_tips": "Reflect ${context?.diet} and ${context?.region} style tips" }
                ... (for all ${context?.duration_weeks} weeks)
            ],
            "day_1_tasks": {
              "meals": [
-                { "meal_type": "breakfast", "time": "08:00", "description": "...", "calories": number, "protein": num, "carbs": num, "fat": num },
-                { "meal_type": "lunch", ... },
-                { "meal_type": "dinner", ... },
-                { "meal_type": "snack", ... }
+                { "meal_type": "breakfast", "time": "08:00", "description": "Specific ${context?.region} ${context?.diet} dish", "calories": number, "protein": num, "carbs": num, "fat": num },
+                ...
              ],
-             "workouts": [
-                { "time": "18:00", "description": "...", "duration": "30 min", "calories_burned": number, "exercises": ["..."] }
-             ]
+             ...
            }
          }
          
          RULES:
-         1. Indian food preferences by default unless specified.
+         1. Respect ${context?.diet} and ${context?.region} preferences strictly.
          2. Generate a 'weekly_plan' item for EVERY week in the duration (${context?.duration_weeks} weeks).
          3. Generate detailed 'day_1_tasks' ONLY for Day 1.
          4. Output valid JSON only. No markdown, no backticks.
          5. Calculate appropriate calorie deficit for safe weight loss (0.5-1kg/week).
+         6. **GOAL ALIGNMENT (STRICT)**: Day 1 meals MUST strictly align with the Goal (${context?.goal}).
+            - Weight Loss: Prioritize steamed, grilled, or dry preparations. **AVOID** rich/creamy gravies. High protein, high fiber.
+            - Weight Gain: Calorie dense.
+         7. **MANDATORY FIELDS**: EVERY Day 1 meal MUST have 'calories' (number, not null) and 'time'.
+         8. **WATER TARGET**: Calculate daily water needs based on weight (approx 35ml per kg of body weight). Min 2000ml. Max 4000ml.
          `;
     }
 
@@ -345,9 +410,13 @@ serve(async (req: Request) => {
          }
          
          Rules:
-         1. Ensure EVERY meal has a 'time', 'calories', and 'description'.
-         2. Ensure total calories sum up close to the target (${context?.calorieTarget}).
-         3. Return valid JSON only.
+          1. **GOAL ALIGNMENT (STRICT)**: All meals MUST strictly align with the Goal (${context?.goalDescription}).
+             - **Weight Loss**: Prioritize steamed, grilled, or dry preparations. **AVOID** rich/creamy gravies, heavy coconut milk, or fried foods. High protein, high fiber.
+             - Weight Gain: Calorie dense, high protein, healthy fats.
+             - Maintenance: Balanced macronutrients.
+          2. Ensure EVERY meal has a 'time', 'calories', and 'description'.
+          3. Ensure total calories sum up close to the target (${context?.calorieTarget}).
+          4. Return valid JSON only.
        `;
     }
 
@@ -397,25 +466,29 @@ serve(async (req: Request) => {
     // --- 5a.8: Analyze Meal Mode (Photo or Text) ---
     if (mode === 'analyze_meal') {
       const analysisPrompt = `
-        Analyze this food (image or text) and estimate nutritional content.
+        Analyze the food in this image and estimate nutritional content.
         
-        Planned Meal (if any): ${context?.plannedMeal || 'N/A'}
-        User Description: ${message || 'See image'}
+        IMPORTANT: Describe what you ACTUALLY SEE in the image, not what was planned.
+        If the image shows rice with curry, say "rice with curry" not what the planned meal was.
+        
+        Context (for reference only):
+        - User Description: ${message || 'See image'}
         
         Respond with JSON ONLY:
         {
-          "detected_food": "Description of what you see/read",
+          "detected_food": "Describe exactly what you see in the image",
           "calories": number,
           "protein": number,
           "carbs": number,
           "fat": number,
           "confidence": "high" | "medium" | "low",
-          "notes": "E.g., High in sugar, good protein source..."
+          "notes": "Brief nutritional analysis of what you detected"
         }
         `;
 
       systemPrompt = analysisPrompt;
     }
+
     if (mode === 'plan') {
       systemPrompt = `You are VitalQuest. Generate a personalized daily health plan for the user.
       User Context: ${JSON.stringify(context || {})}
@@ -433,6 +506,80 @@ serve(async (req: Request) => {
       Generate exactly 3 tasks tailored to the user's level.`;
     }
 
+    if (mode === 'meal_suggest') {
+      const suggestPrompt = `
+        You are VitalQuest AI Health Coach.
+        TASK: Determine if the user is LOGGING a meal they ate, or ASKING for a suggestion.
+        
+        CONTEXT:
+        - Planned Meal: ${context?.plannedMeal || 'N/A'} (Reference ONLY)
+        - Meal Type: ${context?.mealType || 'N/A'}
+        - Goal: ${context?.goalDescription || 'General Health'}
+        - User Request: ${message} (PRIORITIZE THIS)
+        - Remaining Calories today: ${context?.remainingCalories || 'N/A'}
+        - Remaining Macros: Protein: ${context?.remainingProtein || 'N/A'}, Carbs: ${context?.remainingCarbs || 'N/A'}, Fat: ${context?.remainingFat || 'N/A'}
+        - User Preferences: ${retrievedContext}
+
+        RULES:
+        1. **LOGGING MODE**: IF the user says "I ate...", "I had...", "I consumed...", or lists specific food items (e.g. "2 idly"), assume they have ALREADY eaten it.
+           - OUTPUT the nutritional info for THAT FOOD. 
+           - DO NOT suggest an alternative.
+           - Set "suggestion" to the name of the food they ate suitable for a title (e.g. "2 Idly & Sambar").
+           
+        2. **SUGGESTION MODE**: IF the user asks "What should I eat?", "Suggest something", or "I don't like this", then suggest a NEW meal.
+           - Ensure it fits the remaining budget.
+           - **CRITICAL**: Suggest a meal appropriate for **${context?.mealType}**. (e.g. Breakfast foods for Breakfast, etc).
+           - **CRITICAL**: Ensure the suggestion aligns with the USER GOAL (${context?.goalDescription}).
+             - **For Weight Loss**: Suggest **steamed** (e.g. Idli, Puttu), **grilled**, or **dry** options (e.g. Thoran, Roast) rather than rich gravies (Stew, Korma) containing heavy coconut milk/cream.
+        
+        3. Provide exact nutritional estimates for whichever mode is active.
+        3. Respond with JSON ONLY.
+
+        OUTPUT JSON:
+        {
+          "suggestion": "Name of the dish",
+          "description": "Short description of the dish",
+          "calories": number,
+          "protein": number,
+          "carbs": number,
+          "fat": number,
+          "notes": "Brief explanation of why this is a good choice"
+        }
+      `;
+      systemPrompt = suggestPrompt;
+    }
+
+    if (mode === 'ingredient_suggest') {
+      const ingredientPrompt = `
+        You are VitalQuest AI Health Coach.
+        TASK: Recommend what to cook based on the provided ingredients or food photo.
+        
+        CONTEXT:
+        - Input: ${message || 'See image'}
+        - Meal Slot: ${context?.mealType || 'Next meal'}
+        - Remaining Budget: ${context?.remainingCalories || 'N/A'} calories
+        - User Preferences: ${retrievedContext}
+
+        RULES:
+        1. If ingredients are provided, suggest a simple recipe.
+        2. If a food item is shown/described, analyze it and suggest if it fits.
+        3. Prioritize user's dietary and regional preferences.
+        4. Respond with JSON ONLY.
+
+        OUTPUT JSON:
+        {
+          "suggestion": "Recipe Name / Dish Name",
+          "description": "Preparation steps or dish details",
+          "calories": number,
+          "protein": number,
+          "carbs": number,
+          "fat": number,
+          "notes": "Why this fits today's goals"
+        }
+      `;
+      systemPrompt = ingredientPrompt;
+    }
+
     // Construct the request body
     const requestBody: any = {
       contents: []
@@ -444,7 +591,7 @@ serve(async (req: Request) => {
     };
 
     // Handle plan generation modes (require JSON output)
-    if (mode === 'plan' || mode === 'generate_full_plan' || mode === 'generate_roadmap' || mode === 'generate_daily_tasks' || mode === 'analyze_meal') {
+    if (mode === 'plan' || mode === 'generate_full_plan' || mode === 'generate_roadmap' || mode === 'generate_daily_tasks' || mode === 'analyze_meal' || mode === 'meal_suggest' || mode === 'ingredient_suggest') {
       requestBody.contents = [
         {
           role: 'user',
@@ -542,7 +689,7 @@ serve(async (req: Request) => {
     let aiText = data.candidates?.[0]?.content?.parts?.[0]?.text;
     console.log("Gemini Response Raw:", aiText);
 
-    if ((mode === 'plan' || mode === 'generate_roadmap' || mode === 'generate_daily_tasks' || mode === 'analyze_meal' || mode === 'goal_intake') && aiText) {
+    if ((mode === 'plan' || mode === 'generate_roadmap' || mode === 'generate_daily_tasks' || mode === 'analyze_meal' || mode === 'goal_intake' || mode === 'meal_suggest' || mode === 'ingredient_suggest') && aiText) {
       // Clean markdown if present, but only if it looks like a JSON block or we are in a JSON-only mode
       if (aiText.includes('```json')) {
         aiText = aiText.replace(/```json/g, '').replace(/```/g, '').trim();

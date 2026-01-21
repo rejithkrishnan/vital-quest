@@ -81,11 +81,15 @@ export const useGamificationStore = create<GamificationState>((set, get) => ({
         if (!user) return;
 
         // Haptic Feedback
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        if (amount > 0) {
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        } else {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        }
 
         // Optimistic Update
         const currentXp = get().xp;
-        const newXp = currentXp + amount;
+        const newXp = Math.max(0, currentXp + amount); // Prevent negative XP
 
         let newLevel = Math.floor(Math.sqrt(newXp / 100));
         if (newLevel < 1) newLevel = 1;
