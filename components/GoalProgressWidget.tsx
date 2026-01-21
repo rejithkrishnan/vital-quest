@@ -98,8 +98,10 @@ export default function GoalProgressWidget() {
         );
     };
 
+    // Safe date formatting helper
     const formatDate = (dateStr: string | null | undefined) => {
-        const date = new Date(dateStr + 'T00:00:00'); // Ensure local date parsing
+        if (!dateStr) return '--';
+        const date = new Date(dateStr);
         if (isNaN(date.getTime())) return '--';
         return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     };
@@ -136,12 +138,22 @@ export default function GoalProgressWidget() {
         );
     }
 
-    // Calculate end date if missing
-    let endDateDisplay = formatDate(activeGoal.target_date);
-    if (endDateDisplay === '--' && activeGoal.start_date && activeGoal.duration_weeks) {
+    // Calculate end date reliably
+    let endDateDisplay = '--';
+
+    // Try explicit target date first
+    if (activeGoal?.target_date) {
+        endDateDisplay = formatDate(activeGoal.target_date);
+    }
+
+    // Fallback: Calculate from start + duration
+    if ((endDateDisplay === '--' || !activeGoal?.target_date) && activeGoal?.start_date && activeGoal?.duration_weeks) {
         const start = new Date(activeGoal.start_date);
-        start.setDate(start.getDate() + (activeGoal.duration_weeks * 7));
-        endDateDisplay = formatDate(start.toISOString());
+        if (!isNaN(start.getTime())) {
+            const end = new Date(start);
+            end.setDate(start.getDate() + (activeGoal.duration_weeks * 7));
+            endDateDisplay = formatDate(end.toISOString());
+        }
     }
 
     // Calculate Daily Stats (reusing logic from plans.tsx)

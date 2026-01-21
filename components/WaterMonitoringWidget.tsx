@@ -1,10 +1,9 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import React, { useEffect } from 'react';
+import { View, Text, TouchableOpacity } from 'react-native';
 import { useGoalsStore } from '@/stores/goalsStore';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-import { useEffect } from 'react';
 
 export default function WaterMonitoringWidget() {
     const { dailyPlan, activeGoal, logWater } = useGoalsStore();
@@ -19,12 +18,19 @@ export default function WaterMonitoringWidget() {
     const target = activeGoal.daily_water_target || 2000;
     const current = dailyPlan.water_intake || 0;
     const increment = settings.water_increment || 250;
-    const progress = Math.min(1, current / target);
-    const percentage = Math.round(progress * 100);
+    // Cap progress bar at 100%
+    const progressPercent = Math.min((current / target) * 100, 100);
 
     const handleAdd = () => {
+        if (current >= target) return;
+
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-        logWater(increment);
+
+        // Calculate amount to add, capping exactly at target
+        const amountToAdd = Math.min(increment, target - current);
+        if (amountToAdd > 0) {
+            logWater(amountToAdd);
+        }
     };
 
     const handleRemove = () => {
@@ -33,132 +39,41 @@ export default function WaterMonitoringWidget() {
     };
 
     return (
-        <View style={styles.container}>
-            {/* Left: Icon & Label */}
-            <View style={styles.leftSection}>
-                <View style={styles.iconBg}>
+        <View className="bg-white p-4 rounded-3xl border border-gray-100 shadow-sm flex-row items-center justify-between mb-6">
+            {/* Left Side: Title & Progress */}
+            <View className="flex-1 mr-4">
+                <View className="flex-row justify-between items-center mb-2">
+                    <Text className="text-gray-900 font-bold text-lg">Hydration</Text>
+                    <View className="flex-row items-center">
+                        {current > 0 && (
+                            <TouchableOpacity onPress={handleRemove} className="mr-3 p-1">
+                                <Ionicons name="remove-circle-outline" size={18} color="#9CA3AF" />
+                            </TouchableOpacity>
+                        )}
+                        <Text className="text-blue-500 text-xs font-medium">
+                            {current} / {target}ml
+                        </Text>
+                    </View>
+                </View>
+                <View className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                    <View
+                        className="h-full bg-blue-500 rounded-full"
+                        style={{ width: `${progressPercent}%` }}
+                    />
+                </View>
+            </View>
+
+            {/* Right Side: Add Button (Styled like Streak Badge) */}
+            <TouchableOpacity
+                onPress={handleAdd}
+                className="bg-blue-50 px-4 py-2 rounded-2xl items-center border border-blue-100 active:bg-blue-100"
+            >
+                <View className="flex-row items-center gap-1">
                     <Ionicons name="water" size={18} color="#3B82F6" />
+                    <Text className="text-blue-600 font-bold text-lg">+</Text>
                 </View>
-                <View>
-                    <Text style={styles.title}>Hydration</Text>
-                    <Text style={styles.value}>
-                        <Text style={styles.currentVal}>{current}</Text>
-                        <Text style={styles.targetVal}> / {target}ml</Text>
-                    </Text>
-                </View>
-            </View>
-
-            {/* Middle: Progress Bar (Mini) */}
-            <View style={styles.middleSection}>
-                <View style={styles.progressBarBg}>
-                    <View style={[styles.progressBarFill, { width: `${percentage}%` }]} />
-                </View>
-            </View>
-
-            {/* Right: Controls (+ Only usually, or +/- compact) */}
-            <View style={styles.rightSection}>
-                <TouchableOpacity onPress={handleRemove} style={styles.buttonSmall}>
-                    <Ionicons name="arrow-undo" size={18} color="#6B7280" />
-                </TouchableOpacity>
-                <TouchableOpacity onPress={handleAdd} style={styles.buttonAdd}>
-                    <Ionicons name="water" size={18} color="white" />
-                    {/* Optional: Show amount on long press? sticking to simple UI */}
-                </TouchableOpacity>
-            </View>
+                <Text className="text-blue-400 text-[10px] font-bold uppercase tracking-wider">Add</Text>
+            </TouchableOpacity>
         </View>
     );
 }
-
-const styles = StyleSheet.create({
-    container: {
-        backgroundColor: 'white',
-        borderRadius: 20,
-        paddingHorizontal: 16,
-        paddingVertical: 12,
-        marginBottom: 24,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
-        shadowRadius: 8,
-        elevation: 3,
-        flexDirection: 'row', // Single line layout
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        gap: 12,
-    },
-    leftSection: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 10,
-        flex: 2, // Take space
-    },
-    iconBg: {
-        width: 36,
-        height: 36,
-        borderRadius: 12,
-        backgroundColor: '#EFF6FF', // blue-50
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    title: {
-        fontSize: 14,
-        fontWeight: 'bold',
-        color: '#1F2937',
-    },
-    value: {
-        fontSize: 12,
-        color: '#9CA3AF',
-    },
-    currentVal: {
-        fontWeight: 'bold',
-        color: '#3B82F6',
-    },
-    targetVal: {
-        color: '#9CA3AF',
-    },
-
-    middleSection: {
-        flex: 1.5,
-        height: 8,
-        backgroundColor: '#F3F4F6',
-        borderRadius: 4,
-        overflow: 'hidden',
-    },
-    progressBarBg: {
-        flex: 1,
-    },
-    progressBarFill: {
-        height: '100%',
-        backgroundColor: '#3B82F6',
-        borderRadius: 4,
-    },
-
-    rightSection: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 8,
-    },
-    buttonSmall: {
-        width: 32,
-        height: 32,
-        borderRadius: 10,
-        backgroundColor: '#F9FAFB',
-        borderWidth: 1,
-        borderColor: '#E5E7EB',
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    buttonAdd: {
-        width: 32,
-        height: 32,
-        borderRadius: 10,
-        backgroundColor: '#3B82F6',
-        alignItems: 'center',
-        justifyContent: 'center',
-        shadowColor: '#3B82F6',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.2,
-        shadowRadius: 4,
-        elevation: 2,
-    },
-});

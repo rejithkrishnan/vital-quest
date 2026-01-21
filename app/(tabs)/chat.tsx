@@ -169,9 +169,9 @@ export default function ChatScreen() {
       "Attach Image",
       "Take a photo or choose from gallery",
       [
-        { text: "Cancel", style: "cancel" },
-        { text: "Camera", onPress: () => pickImage('camera') },
-        { text: "Gallery", onPress: () => pickImage('gallery') }
+        { text: "Camera", onPress: () => pickImage('camera'), icon: 'camera' },
+        { text: "Gallery", onPress: () => pickImage('gallery'), icon: 'image' },
+        { text: "Cancel", style: "cancel" }
       ]
     );
   };

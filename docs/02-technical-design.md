@@ -5,8 +5,9 @@ Here is the **Technical Design Document (TDD)** for your AI Personal Health Coac
 # **Technical Design Document (TDD)**
 
 **Project Name:** AI Personal Health Coach & Gamification System
-**Version:** 2.0
+**Version:** 2.1
 **Date:** January 2026
+**Last Updated:** 21 January 2026
 
 ---
 
@@ -32,11 +33,12 @@ Here is the **Technical Design Document (TDD)** for your AI Personal Health Coac
 
 ## **1. System Architecture Overview**
 
-The system follows a **Hybrid Client-Server Architecture** enhanced by the **Model Context Protocol (MCP)**.
+The system follows a **Serverless Client-Server Architecture** powered by **Supabase**.
 
-* **Client (Frontend):** React Native (Expo) for UI, sensor data collection, and local interactions.
-* **Server (Backend):** Node.js (Express/FastAPI) acting as the "Orchestrator." It manages user authentication, aggregates data, and proxies requests to the AI.
-* **Intelligence Layer:** Google Gemini API connected via **MCP** to secure tools (Database, Calculator, Search).
+* **Client (Frontend):** React Native (Expo) for UI, sensor data collection, and local state management.
+* **Server (Backend):** **Supabase Edge Functions** (Deno) acting as the serverless orchestrator. Handles authentication, AI calls, and database operations.
+* **Intelligence Layer:** Google Gemini API called directly from Edge Functions with context injection.
+* **Database:** PostgreSQL (Supabase managed) with Row Level Security (RLS) for data protection.
 
 ---
 
@@ -135,12 +137,13 @@ The backend hosts the **MCP Host**. When Gemini decides to take an action, it ca
 | **Logic** | `gamify_action` | Inputs ActionID  Returns XP gained & checks for Level Up. |
 | **External** | `search_nutrition` | Inputs food name  Returns macros (Protein/Carb/Fat). |
 
-### **3.3. API Endpoints (REST)**
+### **3.3. Edge Functions (Serverless API)**
 
-* `POST /auth/login`: Exchange credentials for JWT.
-* `GET /dashboard/sync`: Fetch Plan + Game Stats + Badges in one payload.
-* `POST /chat/message`: Streams Gemini response.
-* `POST /log/signals`: Uploads compressed sensor data chunks for analysis.
+| Function | Method | Description |
+|----------|--------|-------------|
+| `chat-agent` | POST | Main AI chat endpoint with multi-mode support (chat, goal_intake, title, analyze_meal) |
+| `gamify-action` | POST | Awards XP and updates level/streak |
+| `generate-plan` | POST | Creates full roadmap from goal data |
 
 ---
 
@@ -385,7 +388,7 @@ The app will be built in **8 incremental phases**, starting with the foundation 
 | Create base layout | Tab navigation (Home, Chat, Profile) |
 | Design tokens | Colors, typography, spacing in `tailwind.config.js` |
 
-**Exit Criteria:** App runs with 3 tabs, theming works, no backend yet.
+**Exit Criteria:** App runs with 5 tabs, theming works, no backend yet. ✅ Complete
 
 ---
 
@@ -400,7 +403,7 @@ The app will be built in **8 incremental phases**, starting with the foundation 
 | Onboarding flow UI | 3-step wizard (basic info, goals, equipment) |
 | Profile screen | View/edit profile data |
 
-**Exit Criteria:** User can sign up, complete onboarding, view profile.
+**Exit Criteria:** User can sign up, complete onboarding, view profile. ✅ Complete
 
 ---
 
@@ -415,7 +418,7 @@ The app will be built in **8 incremental phases**, starting with the foundation 
 | Dashboard UI | XP bar, current level, avatar |
 | Haptic feedback | `expo-haptics` on XP gain |
 
-**Exit Criteria:** User can earn XP (manual log), see level progress.
+**Exit Criteria:** User can earn XP (manual log), see level progress. ✅ Complete
 
 ---
 
@@ -430,7 +433,7 @@ The app will be built in **8 incremental phases**, starting with the foundation 
 | Context injection | System prompt with user profile + game state |
 | Safety guardrails | Medical disclaimer, input validation |
 
-**Exit Criteria:** User can chat with AI, receives personalized responses.
+**Exit Criteria:** User can chat with AI, receives personalized responses. ✅ Complete
 
 ---
 
@@ -443,9 +446,9 @@ The app will be built in **8 incremental phases**, starting with the foundation 
 | Plan generation | Gemini creates workout/nutrition plan |
 | Plan UI | Today's plan with checkboxes |
 | Activity logging | Manual log with XP award |
-| Offline caching | WatermelonDB for local plan storage |
+| State persistence | Zustand + AsyncStorage for local caching |
 
-**Exit Criteria:** User receives daily plan, can log activities offline.
+**Exit Criteria:** User receives daily plan, can log activities. ✅ Complete
 
 ---
 

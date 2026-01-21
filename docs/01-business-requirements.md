@@ -23,7 +23,7 @@
 
 ## **1. Executive Summary**
 
-**vitalQuest** is a mobile-first, AI-driven health assistant that goes beyond simple tracking. It combines **generative AI (Google Gemini)** to create hyper-personalized plans with **advanced signal processing** (gait, HRV, environment) to understand the user's physical reality. To drive retention, the app uses a deep **Gamification Layer** (RPG-style leveling, streaks, quests) to turn health improvement into an addictive, rewarding game.
+**vitalQuest** is a next-generation AI Health Coach that transforms personal fitness into an immersive, RPG-style journey. Built on a hybrid architecture of **Generative AI (Google Gemini)** and **Bio-Signal Processing**, vitalQuest doesn't just track data—it understands it. By correlating gait analysis, HRV, and nutrition logs with a deep gamification engine, the app delivers a hyper-personalized, adaptive roadmap. It proactively adjusts daily plans based on real-time setbacks or victories, ensuring users stay engaged through an addictive loop of leveling up, earning rewards, and achieving tangible health milestones.
 
 ---
 
