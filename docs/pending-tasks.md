@@ -5,7 +5,7 @@ This document tracks upcoming features and refinements for **vitalQuest**, categ
 ## 🚀 High Priority (Next Session)
 
 ### Phase 6: Sensor Integration
-- [ ] **Steps & Activity**: Integrate `expo-sensors` to track daily steps and sync them with the home dashboard stats.
+- [ ] **Steps & Activity**: Research alternative solutions for step tracking (e.g., native health APIs like HealthKit/Google Fit).
 - [ ] **Gait Analysis**: Implement the walk test feature using accelerometer data to measure walking stability.
 - [ ] **Heart Rate (rPPG)**: Research and implement camera-based heart rate measurement for quick bio-feedback.
 

@@ -1,7 +1,9 @@
+import StepTrackerWidget from '@/components/StepTrackerWidget';
 import DailyPlanWidget from '@/components/DailyPlanWidget';
 import { useRouter } from 'expo-router';
 import GoalProgressWidget from '@/components/GoalProgressWidget';
 import DailyBriefingWidget from '@/components/DailyBriefingWidget';
+
 import WaterMonitoringWidget from '@/components/WaterMonitoringWidget';
 import GamificationWidget from '@/components/GamificationWidget';
 import { useAuthStore } from '@/stores/authStore';
@@ -90,6 +92,12 @@ export default function HomeScreen() {
 
         {/* Stats Widget */}
         <GamificationWidget />
+
+        {/* Step Tracker */}
+        <View className="mt-4">
+          <StepTrackerWidget />
+        </View>
+
 
         {/* Daily Plan Widget */}
         <View className="mt-6 mb-6">
