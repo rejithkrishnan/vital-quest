@@ -399,6 +399,7 @@ export default function ChatScreen() {
                   target_value: intakeResult.data.target_weight,
                   target_unit: 'kg',
                   duration_weeks: intakeResult.data.duration_weeks,
+                  start_date: intakeResult.data.start_date ? new Date(intakeResult.data.start_date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
                   ai_summary: intakeResult.summary || '',
                   status: 'active' as const
                 });
@@ -408,13 +409,29 @@ export default function ChatScreen() {
                 // Then generate the plan using the real goal ID
                 await useGoalsStore.getState().generateFullPlan(newGoal.id, {
                   ...intakeResult.data,
+                  start_date: intakeResult.data.start_date,
                   durationWeeks: intakeResult.data.duration_weeks,
                   userId: user.id
                 });
 
                 setIsGoalIntake(false);
+
+                // Cleanup: Delete the intake conversation as it's no longer needed
+                if (sessionId) {
+                  await supabase.from('chat_sessions').delete().eq('id', sessionId);
+                  // Reset local session state without clearing messages immediately (so user sees success)
+                  // But handleNewChat will clear it.
+                  // We'll reset it when they navigate away or in the callback.
+                }
+
                 Alert.alert("Success!", "Your plan is ready!", [
-                  { text: "View Plan", onPress: () => router.push('/(tabs)/plans') }
+                  {
+                    text: "View Plan",
+                    onPress: () => {
+                      handleNewChat(false); // Reset UI for next time
+                      router.push('/(tabs)/plans');
+                    }
+                  }
                 ]);
                 aiResponse = "Plan generated successfully! Check the Plans tab.";
 
@@ -574,13 +591,13 @@ export default function ChatScreen() {
             </Pressable>
 
             <TextInput
-              className="flex-1 bg-gray-100 rounded-full px-5 py-3 text-base text-gray-900"
+              className="flex-1 bg-gray-100 rounded-2xl px-5 py-3 text-base text-gray-900 max-h-32"
               placeholder="Ask or share a photo..."
               placeholderTextColor="#9CA3AF"
               value={message}
               onChangeText={setMessage}
-              onSubmitEditing={handleSend}
-              returnKeyType="send"
+              multiline
+              textAlignVertical="top"
             />
             <Pressable
               onPress={handleSend}

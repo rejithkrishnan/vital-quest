@@ -237,12 +237,13 @@ serve(async (req: Request) => {
 
     // Daily Summary Generation Mode
     if (mode === 'generate_summary') {
-      const { tasks, hour, userName } = context;
+      const { tasks, hour, userName, hydration } = context;
 
       const summaryPrompt = `
         You are VitalQuest, an enthusiastic AI Health Coach.
         User Name: ${userName || 'Friend'}
         Current Time Hour: ${hour}
+        Hydration: ${hydration?.current || 0} / ${hydration?.target || 2000} ml
         Today's Tasks Summary: ${JSON.stringify(tasks)}
 
         Task: Analyze the user's progress for today.
@@ -250,9 +251,11 @@ serve(async (req: Request) => {
         Generate a concise, high-energy status update (30-40 words MAX).
         
         Structure:
-        1. Personalized Greeting (based on time: morning/afternoon/evening).
-        2. Progress acknowledgement (e.g. "You've crushed 3/5 tasks!" or "Great start with breakfast!").
-        3. Motivation for the NEXT specific task (mention its name and time).
+        1. Personalized Greeting.
+        2. Progress acknowledgement (tasks & water).
+           - If water is low (below 50% by afternoon), remind them to drink!
+           - If water is good, celebrate it.
+        3. Motivation for the NEXT specific task.
         
         Tone: Encouraging, energetic, like a personal trainer.
         Output: ONLY the plain text message. No markdown headers.
@@ -300,23 +303,26 @@ serve(async (req: Request) => {
         MEMORY BANK (Past Conversations):
         ${retrievedContext}
         
-        REQUIRED INFORMATION (Collect these 6 items):
+        REQUIRED INFORMATION (Collect these 7 items):
         1. Main Goal (e.g., "Lose weight", "Build muscle")
         2. Current Weight (in kg)
         3. Target Weight (in kg)
         4. Timeline (e.g., 8 weeks)
-        5. Dietary Preference (e.g., Vegetarian, Non-Veg, Vegan, Keto)
-        6. Regional Preference (e.g., North Indian, South Indian, Mediterranean)
+        5. Start Date (When they want to start - e.g., "Tomorrow", "Next Monday", "Jan 25", or a specific date. Default to tomorrow if user says "immediately" or "now")
+        6. Dietary Preference (e.g., Vegetarian, Non-Veg, Vegan, Keto)
+        7. Regional Preference (e.g., North Indian, South Indian, Mediterranean)
         
         CONVERSATION FLOW:
         1. **Gather Items:** Check MEMORY BANK or context for any known info. Ask for missing items one by one. Keep responses SHORT (1-2 sentences).
-        2. **Detailed Summary:** ONCE ALL 6 ITEMS ARE COLLECTED, provide a DETAILED summary of the proposed plan. THIS SUMMARY MUST BE 50-70 WORDS LONG. Cover the nutrition strategy, regional food integration, and expected progress.
+        2. **Detailed Summary:** ONCE ALL 7 ITEMS ARE COLLECTED, provide a DETAILED summary of the proposed plan. THIS SUMMARY MUST BE 50-70 WORDS LONG. Cover the nutrition strategy, regional food integration, start date, and expected progress.
         3. **Wait for Lock:** At the end of the summary, ask: "Does this roadmap look good? Ready to lock it in and generate your plan?"
         4. **Final Turn (JSON):** ONLY AFTER the user gives a positive confirmation (e.g., "Confirm", "Lock it in"), output the JSON below. DO NOT say anything else. Just the JSON.
 
         CRITICAL RULES:
         - DO NOT provide JSON until AFTER the user confirms the detailed 50-70 word summary.
         - If the user hasn't confirmed the summary, persist in plain text.
+        - For Start Date: Convert ALL relative dates (like "tomorrow", "next Monday", "Feb 1st", "this coming friday") into a strict YYYY-MM-DD format using today's date: ${new Date().toISOString().split('T')[0]} as the reference. This is critical.
+        - The "start_date" MUST be a valid YYYY-MM-DD string in the JSON output and should never be missing or null.
 
         OUTPUT FORMAT:
         - Summary/Interaction: Plain text.
@@ -328,6 +334,7 @@ serve(async (req: Request) => {
               "weight": number,
               "target_weight": number,
               "duration_weeks": number,
+              "start_date": "YYYY-MM-DD",
               "diet": "string",
               "region": "string"
             },

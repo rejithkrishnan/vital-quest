@@ -244,9 +244,23 @@ export default function PlansScreen() {
                 {/* Task List */}
                 <View className="mb-20">
                     {filteredTasks.length === 0 ? (
-                        <View className="items-center py-10">
-                            <Ionicons name="calendar-outline" size={48} color="#D1D5DB" />
-                            <Text className="text-gray-400 mt-4 text-center">No tasks generated for this day yet.</Text>
+                        <View className="items-center py-10 px-6">
+                            {activeGoal?.start_date && new Date(selectedDate) < new Date(new Date(activeGoal.start_date).setHours(0, 0, 0, 0)) ? (
+                                <>
+                                    <View className="w-20 h-20 bg-indigo-50 rounded-full items-center justify-center mb-4">
+                                        <Ionicons name="rocket-outline" size={40} color="#6366F1" />
+                                    </View>
+                                    <Text className="text-gray-900 font-bold text-lg text-center">Journey hasn't started yet</Text>
+                                    <Text className="text-gray-500 mt-2 text-center">
+                                        Your personalized health quest officially begins on {new Date(activeGoal.start_date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}.
+                                    </Text>
+                                </>
+                            ) : (
+                                <>
+                                    <Ionicons name="calendar-outline" size={48} color="#D1D5DB" />
+                                    <Text className="text-gray-400 mt-4 text-center">No tasks generated for this day yet.</Text>
+                                </>
+                            )}
                             {dailyPlan?.summary === 'Pending AI generation' && (
                                 <TouchableOpacity
                                     onPress={() => generateDailyTasks(selectedDate)}

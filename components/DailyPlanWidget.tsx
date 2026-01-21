@@ -2,9 +2,10 @@ import CelebrationModal from './CelebrationModal';
 import { useGoalsStore } from '@/stores/goalsStore';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import { ActivityIndicator, Pressable, Text, View, TouchableOpacity } from 'react-native';
 import MealUpdateModal from './MealUpdateModal';
+import { LinearGradient } from 'expo-linear-gradient';
 
 export default function DailyPlanWidget() {
     const router = useRouter();
@@ -15,7 +16,8 @@ export default function DailyPlanWidget() {
         fetchDailyPlan,
         activeGoal,
         fetchActiveGoal,
-        toggleTaskCompletion
+        toggleTaskCompletion,
+        weeklyPlans
     } = useGoalsStore();
 
     const [showCelebration, setShowCelebration] = useState(false);
@@ -30,14 +32,29 @@ export default function DailyPlanWidget() {
     }, []);
 
     // Check for completion
+    // Check for completion with transition tracking
+    const isMounted = useRef(false);
+    const prevCompletedRef = useRef(false);
+
     useEffect(() => {
-        if (tasks && tasks.length > 0) {
-            const allCompleted = tasks.every(t => t.is_completed);
-            if (allCompleted) {
-                setShowCelebration(true);
-            }
+        if (isLoading || !tasks || tasks.length === 0) return;
+
+        const currentCompleted = tasks.every(t => t.is_completed);
+
+        if (!isMounted.current) {
+            // First valid load - define initial state without triggering
+            prevCompletedRef.current = currentCompleted;
+            isMounted.current = true;
+            return;
         }
-    }, [tasks]);
+
+        // Only celebrate if transitioning from incomplete to complete
+        if (currentCompleted && !prevCompletedRef.current) {
+            setShowCelebration(true);
+        }
+
+        prevCompletedRef.current = currentCompleted;
+    }, [tasks, isLoading]);
 
     // Handler for logging mechanism
     const handleLogTask = (task: any) => {
@@ -82,7 +99,7 @@ export default function DailyPlanWidget() {
                 </View>
                 <Pressable
                     onPress={() => router.push({ pathname: '/(tabs)/chat', params: { action: 'create_plan' } })}
-                    className="bg-blue-500 px-6 py-3 rounded-full flex-row items-center active:opacity-90"
+                    className="bg-blue-500 px-6 py-3 rounded-full flex-row items-center active:opacity-90 mt-2"
                 >
                     <Ionicons name="sparkles" size={18} color="white" />
                     <Text className="text-white font-bold text-base ml-2">Create Plan</Text>
@@ -91,8 +108,56 @@ export default function DailyPlanWidget() {
         );
     }
 
-    // Has goal but no tasks for today
+    // Has goal but no tasks for today - check if plan starts in future
     if (!nextTask && totalCount === 0) {
+        // Check if plan starts in the future
+        const firstWeek = weeklyPlans && weeklyPlans.length > 0
+            ? weeklyPlans.sort((a: any, b: any) => a.week_number - b.week_number)[0]
+            : null;
+
+        const planStartDate = firstWeek?.week_start_date ? new Date(firstWeek.week_start_date) : null;
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        const isStartingInFuture = planStartDate && planStartDate > today;
+
+        if (isStartingInFuture) {
+            // Calculate days until start
+            const daysUntilStart = Math.ceil((planStartDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+            const formattedDate = planStartDate.toLocaleDateString('en-US', {
+                weekday: 'long',
+                month: 'short',
+                day: 'numeric'
+            });
+
+            return (
+                <LinearGradient
+                    colors={['#8B5CF6', '#6366F1']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={{ borderRadius: 24, overflow: 'hidden' }}
+                >
+                    <View className="p-6 items-center">
+                        <View className="w-14 h-14 bg-white/20 rounded-full items-center justify-center mb-4">
+                            <Ionicons name="hourglass-outline" size={30} color="white" />
+                        </View>
+                        <Text className="text-xl font-bold text-white text-center">Your Quest Awaits!</Text>
+                        <View className="items-center mt-1">
+                            <Text className="text-white/80 text-center">
+                                Goal starts {formattedDate}
+                            </Text>
+                            <View className="bg-white/20 px-4 py-2 rounded-full mt-4">
+                                <Text className="text-white font-bold">
+                                    {daysUntilStart} {daysUntilStart === 1 ? 'day' : 'days'} to go 🚀
+                                </Text>
+                            </View>
+                        </View>
+                    </View>
+                </LinearGradient>
+            );
+        }
+
+        // Normal "No Tasks Today" state
         return (
             <Pressable
                 onPress={() => router.push('/(tabs)/plans')}

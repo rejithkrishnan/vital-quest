@@ -1,5 +1,6 @@
 import { supabase } from '@/services/supabase';
-import { useRouter } from 'expo-router';
+
+import { useRouter, Stack } from 'expo-router';
 import { useAuthStore } from '@/stores/authStore';
 import { useGamificationStore } from '@/stores/gamificationStore';
 import { useGoalsStore } from '@/stores/goalsStore';
@@ -188,7 +189,13 @@ export default function ProfileScreen() {
     }
 
     return (
-        <SafeAreaView className="flex-1 bg-gray-50">
+        <SafeAreaView className="flex-1 bg-gray-50" edges={['left', 'right', 'bottom']}>
+            <Stack.Screen options={{
+                headerTitle: '',
+                headerTransparent: true,
+                headerShadowVisible: false,
+                headerTintColor: '#1F2937'
+            }} />
             <ScrollView
                 showsVerticalScrollIndicator={false}
                 refreshControl={
@@ -196,7 +203,7 @@ export default function ProfileScreen() {
                 }
             >
                 {/* Header Profile Section */}
-                <View className="bg-white p-6 pb-8 rounded-b-[32px] shadow-sm mb-6">
+                <View className="bg-white px-6 pb-8 pt-16 rounded-b-[32px] shadow-sm mb-6">
                     <View className="items-center">
                         <Pressable onPress={handleAvatarPress} className="relative">
                             <View className="w-24 h-24 bg-gray-200 rounded-full mb-4 items-center justify-center border-4 border-white shadow-sm overflow-hidden">

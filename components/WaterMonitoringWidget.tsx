@@ -58,10 +58,10 @@ export default function WaterMonitoringWidget() {
             {/* Right: Controls (+ Only usually, or +/- compact) */}
             <View style={styles.rightSection}>
                 <TouchableOpacity onPress={handleRemove} style={styles.buttonSmall}>
-                    <Ionicons name="remove" size={16} color="#6B7280" />
+                    <Ionicons name="arrow-undo" size={18} color="#6B7280" />
                 </TouchableOpacity>
                 <TouchableOpacity onPress={handleAdd} style={styles.buttonAdd}>
-                    <Ionicons name="add" size={18} color="white" />
+                    <Ionicons name="water" size={18} color="white" />
                     {/* Optional: Show amount on long press? sticking to simple UI */}
                 </TouchableOpacity>
             </View>

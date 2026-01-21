@@ -3,11 +3,13 @@ import { CustomAlert as Alert } from '@/utils/CustomAlert';
 import React, { useEffect, useState, useRef } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import { useGoalsStore } from '@/stores/goalsStore';
+import { useAuthStore } from '@/stores/authStore';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 
 export default function GoalProgressWidget() {
     const { activeGoal, isLoading, fetchActiveGoal, deleteGoal, dailyPlan, tasks, fetchDailyPlan, weeklyPlans, fetchWeeklyPlans } = useGoalsStore();
+    const { profile } = useAuthStore();
     const [activePage, setActivePage] = useState(0);
     const [containerWidth, setContainerWidth] = useState(0);
     const [isSummaryExpanded, setIsSummaryExpanded] = useState(false);
@@ -97,8 +99,7 @@ export default function GoalProgressWidget() {
     };
 
     const formatDate = (dateStr: string | null | undefined) => {
-        if (!dateStr) return '--';
-        const date = new Date(dateStr);
+        const date = new Date(dateStr + 'T00:00:00'); // Ensure local date parsing
         if (isNaN(date.getTime())) return '--';
         return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     };
@@ -185,7 +186,9 @@ export default function GoalProgressWidget() {
                 </View>
                 <View style={styles.weightItem}>
                     <Text style={styles.weightLabel}>Current</Text>
-                    <Text style={[styles.weightValue, { color: '#4285F4' }]}>{activeGoal.start_value}</Text>
+                    <Text style={[styles.weightValue, { color: '#4285F4' }]}>
+                        {profile?.profile_data?.weight ? Number(profile.profile_data.weight).toFixed(1) : '--'}
+                    </Text>
                     <Text style={styles.weightUnit}>{activeGoal.target_unit}</Text>
                 </View>
                 <View style={styles.weightDivider}>
@@ -201,7 +204,9 @@ export default function GoalProgressWidget() {
             <View style={styles.dateRow}>
                 <View style={styles.dateItem}>
                     <Ionicons name="calendar-outline" size={14} color="#6B7280" />
-                    <Text style={styles.dateText}>{formatDate(activeGoal.start_date)} - {endDateDisplay}</Text>
+                    <Text style={styles.dateText}>
+                        {new Date(activeGoal.start_date) > new Date() ? 'Starts ' : ''}{formatDate(activeGoal.start_date)} - {endDateDisplay}
+                    </Text>
                 </View>
                 <Text style={styles.durationText}>{activeGoal.duration_weeks} weeks</Text>
             </View>
@@ -377,7 +382,10 @@ export default function GoalProgressWidget() {
                     </View>
                     <View style={styles.wideWeightBox}>
                         <Text style={styles.wideWeightLabel}>Current</Text>
-                        <Text style={[styles.wideWeightValue, { color: '#4285F4' }]}>{activeGoal.start_value}<Text style={styles.wideWeightUnit}>{activeGoal.target_unit}</Text></Text>
+                        <Text style={[styles.wideWeightValue, { color: '#4285F4' }]}>
+                            {profile?.profile_data?.weight ? Number(profile.profile_data.weight).toFixed(1) : '--'}
+                            <Text style={styles.wideWeightUnit}>{activeGoal.target_unit}</Text>
+                        </Text>
                     </View>
                     <View style={styles.wideArrowFn}>
                         <Ionicons name="chevron-forward" size={24} color="#D1D5DB" />
@@ -410,7 +418,9 @@ export default function GoalProgressWidget() {
                 <View style={styles.wideFooter}>
                     <View style={styles.wideDateBadge}>
                         <Ionicons name="time-outline" size={16} color="#4B5563" />
-                        <Text style={styles.wideDateText}>{activeGoal.duration_weeks} Weeks • {formatDate(activeGoal.start_date)} - {endDateDisplay}</Text>
+                        <Text style={styles.wideDateText}>
+                            {activeGoal.duration_weeks} Weeks • {new Date(activeGoal.start_date) > new Date() ? 'Starts ' : ''}{formatDate(activeGoal.start_date)} - {endDateDisplay}
+                        </Text>
                     </View>
                 </View>
             </View>

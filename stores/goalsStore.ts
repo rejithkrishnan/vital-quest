@@ -67,6 +67,7 @@ export interface GoalsState {
     weeklyPlans: WeeklyPlan[];
     dailyPlan: DailyPlan | null;
     tasks: PlanTask[];
+    weightLogs: any[]; // New
     isLoading: boolean;
     error: string | null;
 
@@ -85,6 +86,8 @@ export interface GoalsState {
     deleteGoal: (goalId: string) => Promise<void>;
     resetUserData: () => Promise<void>;
     logWater: (amount: number) => Promise<void>;
+    logWeight: (weight: number, date?: string) => Promise<void>; // New
+    fetchWeightLogs: () => Promise<void>; // New
     subscribeToRealtime: () => () => void;
 }
 
@@ -247,7 +250,8 @@ export const useGoalsStore = create<GoalsState>((set, get) => ({
             }
 
             // 2. Create Weekly Plans
-            const startDate = new Date();
+            // Use context.start_date if provided, otherwise default to today
+            const startDate = context.start_date ? new Date(context.start_date) : new Date();
             const weeklyPlansData = planJson.weekly_plans.map((wp: any, index: number) => {
                 const weekStart = new Date(startDate);
                 weekStart.setDate(startDate.getDate() + (index * 7));
@@ -498,7 +502,7 @@ export const useGoalsStore = create<GoalsState>((set, get) => ({
     },
 
     generateDailySummary: async () => {
-        const { dailyPlan, tasks } = get();
+        const { dailyPlan, tasks, activeGoal } = get();
         if (!dailyPlan) return;
 
         try {
@@ -513,7 +517,11 @@ export const useGoalsStore = create<GoalsState>((set, get) => ({
                     context: {
                         tasks,
                         hour: new Date().getHours(),
-                        userName
+                        userName,
+                        hydration: {
+                            current: dailyPlan.water_intake || 0,
+                            target: activeGoal?.daily_water_target || 2000
+                        }
                     },
                     userId: session?.user?.id || 'anon'
                 }
@@ -940,6 +948,62 @@ export const useGoalsStore = create<GoalsState>((set, get) => ({
 
     deleteGoal: async (goalId: string) => {
         try {
+            set({ isLoading: true });
+            console.log("Deleting goal:", goalId);
+
+            // 1. Get Daily Plans to find Tasks
+            const { data: dailyPlans } = await supabase
+                .from('daily_plans')
+                .select('id')
+                .eq('goal_id', goalId);
+
+            const dailyPlanIds = dailyPlans?.map(p => p.id) || [];
+
+            if (dailyPlanIds.length > 0) {
+                // 2. Get Tasks to find Logs
+                const { data: tasks } = await supabase
+                    .from('plan_tasks')
+                    .select('id')
+                    .in('plan_id', dailyPlanIds);
+
+                const taskIds = tasks?.map(t => t.id) || [];
+
+                if (taskIds.length > 0) {
+                    // 3. Delete Calorie Logs linked to tasks
+                    const { error: logError } = await supabase
+                        .from('calorie_log')
+                        .delete()
+                        .in('task_id', taskIds);
+
+                    if (logError) console.error("Error deleting logs:", logError);
+
+                    // 4. Delete Tasks
+                    const { error: taskError } = await supabase
+                        .from('plan_tasks')
+                        .delete()
+                        .in('plan_id', dailyPlanIds);
+
+                    if (taskError) console.error("Error deleting tasks:", taskError);
+                }
+
+                // 5. Delete Daily Plans
+                const { error: planError } = await supabase
+                    .from('daily_plans')
+                    .delete()
+                    .eq('goal_id', goalId);
+
+                if (planError) console.error("Error deleting daily plans:", planError);
+            }
+
+            // 6. Delete Weekly Plans
+            const { error: weeklyError } = await supabase
+                .from('weekly_plans')
+                .delete()
+                .eq('goal_id', goalId);
+
+            if (weeklyError) console.error("Error deleting weekly plans:", weeklyError);
+
+            // 7. Finally Delete Goal
             const { error } = await supabase
                 .from('health_goals')
                 .delete()
@@ -947,13 +1011,19 @@ export const useGoalsStore = create<GoalsState>((set, get) => ({
 
             if (error) throw error;
 
-            // Clear local state
-            set({ activeGoal: null, weeklyPlans: [], dailyPlan: null, tasks: [] });
-        } catch (e: any) {
-            console.error("Error deleting goal:", e);
-            throw e;
+            console.log("Goal deleted successfully");
+            set({ activeGoal: null, dailyPlan: null, tasks: [], weeklyPlans: [] });
+
+        } catch (error: any) {
+            console.error('Delete goal error:', error);
+            set({ error: error.message });
+            throw error;
+        } finally {
+            set({ isLoading: false });
         }
     },
+
+
 
     resetUserData: async () => {
         const user = useAuthStore.getState().user;
@@ -1000,6 +1070,11 @@ export const useGoalsStore = create<GoalsState>((set, get) => ({
 
         console.log(`Logging water: ${amount}ml`);
 
+        // Add XP if adding water (positive amount)
+        if (amount > 0) {
+            useGamificationStore.getState().addXp(3);
+        }
+
         // Optimistic update
         const current = dailyPlan.water_intake || 0;
         const newVal = Math.max(0, current + amount); // Prevent negative
@@ -1016,6 +1091,11 @@ export const useGoalsStore = create<GoalsState>((set, get) => ({
         } catch (e) {
             console.error("Failed to log water:", e);
             set({ dailyPlan: { ...dailyPlan, water_intake: current } }); // Revert
+
+            // Revert XP if it was added
+            if (amount > 0) {
+                useGamificationStore.getState().addXp(-3);
+            }
             Alert.alert("Sync Error", "Failed to update water intake.");
         }
     },
@@ -1064,5 +1144,80 @@ export const useGoalsStore = create<GoalsState>((set, get) => ({
         return () => {
             supabase.removeChannel(channel);
         };
+    },
+
+    // Weight Logging (New)
+    weightLogs: [], // Initialize in state, need to add to interface first
+    fetchWeightLogs: async () => {
+        const user = useAuthStore.getState().user;
+        if (!user) return;
+        try {
+            // Get last 7 days or so for charts if we had one, but for now just get today's to ensure sync
+            const { data, error } = await supabase
+                .from('weight_logs')
+                .select('*')
+                .eq('user_id', user.id)
+                .order('date', { ascending: false })
+                .limit(30);
+
+            if (error) {
+                // Tolerate error if table doesn't exist yet (dev mode)
+                console.warn("Fetch weight logs failed (table might be missing):", error.message);
+                return;
+            }
+
+            if (data) {
+                set({ weightLogs: data });
+            }
+        } catch (e) {
+            console.error(e);
+        }
+    },
+
+    logWeight: async (weight: number, date?: string) => {
+        const user = useAuthStore.getState().user;
+        if (!user) return;
+
+        const logDate = date || new Date().toISOString().split('T')[0];
+        console.log(`Logging weight: ${weight}kg for ${logDate}`);
+
+        // Optimistic update? We don't have a weight variable in this store yet except via activeGoal validation
+        // But we want to persist it.
+
+        try {
+            // 1. Upsert into weight_logs
+            const { error } = await supabase
+                .from('weight_logs')
+                .upsert({
+                    user_id: user.id,
+                    date: logDate,
+                    weight: weight
+                }, { onConflict: 'user_id, date' });
+
+            if (error) throw error;
+
+            // 2. Update Profile (Current Weight)
+            const { error: profileError } = await supabase
+                .from('profiles')
+                .update({
+                    profile_data: {
+                        ...useAuthStore.getState().profile?.profile_data,
+                        weight: weight
+                    }
+                })
+                .eq('id', user.id);
+
+            if (profileError) console.error("Failed to update profile weight:", profileError);
+            else await useAuthStore.getState().refreshProfile();
+
+            // 3. Trigger gamification/XP? Maybe?
+
+            // Silent success
+            console.log("Weight logged successfully");
+
+        } catch (e: any) {
+            console.error("Log weight error:", e);
+            Alert.alert("Error", "Failed to save weight.");
+        }
     }
 }));

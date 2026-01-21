@@ -25,7 +25,7 @@
 | **Phase 3: Basic Gamification** | ✅ Complete | 100% |
 | **Phase 4: AI Chat** | ✅ Complete | 100% |
 | **Phase 4b: Enhanced AI** | ✅ Complete | 100% (Vision/RAG active) |
-| **Phase 5: Plans & Logging** | ✅ Complete | 100% (Sync & Macros fixed) |
+| **Phase 5: Plans & Logging** | ✅ Complete | 100% (Sync, Macros & Weight) |
 | **Phase 6: Sensors** | ⏳ Pending | 0% |
 | **Phase 7: Advanced Gamification** | ⏳ Pending | 0% |
 | **Phase 8: Polish & Launch** | 🔶 Partial | 20% (UI Aesthetic Polish) |
@@ -298,8 +298,8 @@ Multi-session chat, file uploads, RAG memory, and visual verification.
 | 4b.11 | Build visual verification flow | Camera -> AI analysis -> DB update | 2 hr |
 
 ### Exit Criteria
-- [ ] User can create and switch chat sessions
-- [ ] User can attach images/PDFs to chat
+- [x] User can create and switch chat sessions
+- [x] User can attach images/PDFs to chat
 - [ ] AI remembers facts mentioned previously (RAG)
 - [ ] User can verify meal with photo
 
@@ -356,14 +356,26 @@ AI generates complete personalized diet/fitness plans with goal validation, meal
 | 5d.2 | Request notification permissions | 15 min |
 | 5d.3 | Schedule meal/workout reminders on plan creation | 1 hr |
 | 5d.4 | Handle notification taps → navigate to Plans | 30 min |
+360: 
+361: ### Phase 5e: Weight Tracking & Widget (Days 30-31)
+362: 
+363: | # | Task | Est. Time |
+364: |---|------|-----------|
+365: | 5e.1 | Create `weight_logs` migration | ✅ 20 min |
+366: | 5e.2 | Implement `WeightLoggingWidget` (3-col layout, chart) | ✅ 2 hr |
+367: | 5e.3 | Implement `WeightPickerModal` (Scroll wheel) | ✅ 1.5 hr |
+368: | 5e.4 | Update `GoalProgressWidget` for real-time sync | ✅ 30 min |
+369: | 5e.5 | Chat Input UX (Multiline support) | ✅ 20 min |
 
 ### Exit Criteria
-- [ ] AI validates goal realism and rejects unrealistic goals
-- [ ] Complete plan generated upfront for entire goal period
-- [ ] User can log meals via photo, text, or as-planned
-- [ ] Calorie tracker auto-updates on completion
-- [ ] Push notifications for meals/workouts
-- [ ] XP awarded on task completion
+- [x] AI validates goal realism and rejects unrealistic goals
+- [x] Complete plan generated upfront for entire goal period
+- [x] User can log meals via text or as-planned
+- [x] Calorie tracker auto-updates on completion
+- [ ] Push notifications for meals/workouts (Moved to Phase 7)
+- [x] XP awarded on task completion
+- [x] Weight logging with history chart active
+- [x] Current Goal syncs with real-time weight
 
 ---
 

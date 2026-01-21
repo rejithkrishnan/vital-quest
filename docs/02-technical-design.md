@@ -14,18 +14,19 @@ Here is the **Technical Design Document (TDD)** for your AI Personal Health Coac
 
 | Component | Status | Notes |
 |-----------|--------|-------|
-| **Frontend (5 Tabs)** | 🔶 Partial | 4 tabs done, Plans/Insights pending |
+| **Frontend (5 Tabs)** | ✅ Complete | All tabs active |
 | **Auth & Profile** | ✅ Complete | Supabase Auth + Profiles table |
 | **Gamification** | ✅ Complete | XP, Levels, Streak store |
 | **AI Chat (Basic)** | ✅ Complete | Chat UI + Edge Function |
-| **Chat Sessions** | ⏳ Pending | Multi-session support |
-| **Chat Attachments** | ⏳ Pending | File upload support |
+| **Chat Sessions** | ✅ Complete | Multi-session support active |
+| **Chat Attachments** | ✅ Complete | Image upload support active |
 | **RAG Memory** | ⏳ Pending | pgvector + user_memory table |
-| **Daily Plans** | 🔶 Partial | Schema exists, UI pending |
-| **Plan Tasks** | 🔶 Partial | Schema exists, interactive edit pending |
+| **Daily Plans** | ✅ Complete | Schema & UI implemented |
+| **Plan Tasks** | ✅ Complete | Interactive editing & logging active |
+| **Weight Logging** | ✅ Complete | Dedicated widget & history tracking |
 | **Sensors (Gait/HRV)** | ⏳ Pending | Not started |
 | **Advanced Gamification** | ⏳ Pending | Streaks, Quests, Badges |
-| **Immersive Motion** | ⏳ Pending | Lottie Icons, Moti Transitions |
+| **Immersive Motion** | 🔶 Partial | Lottie installed, some animations active |
 
 ---
 
@@ -108,10 +109,9 @@ app/
    * Streak Freeze shop.
 
 ### **2.4. Offline Strategy**
-
-* Uses **WatermelonDB** (local SQLite wrapper) to cache today's plan.
-* Users can check off items offline; sync happens when connection is restored.
-* Pending uploads queued and retried.
+* **Primary:** Online-first architecture using **TanStack Query** for caching.
+* **State:** **Zustand** persists user session and preferences locally.
+* **Fallback:** Simple offline handling for UI (viewing loaded data), with blocking actions requiring connection.
 
 ## **3. Backend Design (The Orchestrator)**
 
@@ -282,6 +282,14 @@ The backend hosts the **MCP Host**. When Gemini decides to take an action, it ca
 * `calories` (integer)
 * `protein`, `carbs`, `fat` (integer)
 * `source` (text: 'plan' | 'manual' | 'photo_ai' | 'text_ai')
+* `created_at` (timestamptz)
+
+**12. `weight_logs`** (NEW)
+
+* `id` (UUID, PK)
+* `user_id` (UUID, FK → profiles.id)
+* `weight` (decimal, kg)
+* `date` (date)
 * `created_at` (timestamptz)
 
 ### **4.3. Storage Buckets**

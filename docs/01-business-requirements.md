@@ -12,12 +12,12 @@
 | Module | Status | Notes |
 |--------|--------|-------|
 | **A: Onboarding** | ✅ Complete | Basic profile + auth |
-| **B: AI Plan Generation** | 🔶 Partial | Plan schema exists, generation pending |
-| **C: Signal Features** | ⏳ Pending | Gait/HRV not started |
-| **D: Gamification** | ✅ Complete | XP, Levels, Dashboard |
-| **E: AI Chat** | 🔶 Partial | Basic chat done; Sessions, RAG, Uploads pending |
-| **Screen Structure** | 🔶 Partial | 4 of 5 tabs implemented |
-| **UI/UX Polish** | ⏳ Pending | Animations, avatars pending |
+| **B: AI Plan Generation** | ✅ Complete | Full intake flow & roadmap generation active |
+| **C: Signal Features** | ⏳ Pending | Gait/HRV scheduled for next phase |
+| **D: Gamification** | ✅ Complete | XP, Levels, Streak, Dashboard |
+| **E: AI Chat** | ✅ Complete | Multi-session, Attachments, Context Aware |
+| **Screen Structure** | ✅ Complete | All 5 tabs implemented & active |
+| **UI/UX Polish** | 🔶 Partial | Animations started (Lottie/Moti pending) |
 
 ---
 
